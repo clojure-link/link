@@ -1,5 +1,6 @@
 (ns link.codec
   (:refer-clojure :exclude [byte])
+  (:import [java.nio ByteBuffer])
   (:import [org.jboss.netty.buffer
             ChannelBuffer
             ChannelBuffers]))
@@ -127,6 +128,20 @@
                       sbytes (byte-array slength)]
                   (.readBytes buffer ^bytes sbytes)
                   (String. sbytes encoding)))))))
+
+(defcodec bytes
+  (encoder [options ^ByteBuffer data buffer]
+           (let [{prefix :prefix} options
+                 byte-length (.remaining data)]
+             ((:encoder prefix) byte-length buffer)
+             (.writeBytes buffer ^ByteBuffer data)
+             buffer))
+  (decoder [option buffer]
+           (let [{prefix :prefix} options
+                 byte-length ((:decoder prefix) buffer)
+                 local-buffer (ByteBuffer/allocate byte-length)]
+             (.readBytes buffer ^ByteBuffer local-buffer)
+             local-buffer)))
 
 ;;TODO
 
