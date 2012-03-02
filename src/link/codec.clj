@@ -73,13 +73,6 @@
   (decoder [_ buffer]
            (.readLong buffer)))
 
-(defcodec unit64
-  (encoder [_ data buffer]
-           (.writeLong buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readUnsignedLong buffer)))
-
 (defn- find-delimiter [^ChannelBuffer src ^bytes delim]
   (loop [sindex (.readerIndex src) dindex 0]
     (if (= sindex (.writerIndex src))
@@ -129,14 +122,14 @@
                   (.readBytes buffer ^bytes sbytes)
                   (String. sbytes encoding)))))))
 
-(defcodec bytes
+(defcodec byte-block
   (encoder [options ^ByteBuffer data buffer]
            (let [{prefix :prefix} options
                  byte-length (.remaining data)]
              ((:encoder prefix) byte-length buffer)
              (.writeBytes buffer ^ByteBuffer data)
              buffer))
-  (decoder [option buffer]
+  (decoder [options buffer]
            (let [{prefix :prefix} options
                  byte-length ((:decoder prefix) buffer)
                  local-buffer (ByteBuffer/allocate byte-length)]
