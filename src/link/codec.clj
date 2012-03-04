@@ -1,5 +1,5 @@
 (ns link.codec
-  (:refer-clojure :exclude [byte])
+  (:refer-clojure :exclude [byte float double])
   (:import [java.nio ByteBuffer])
   (:import [org.jboss.netty.buffer
             ChannelBuffer
@@ -33,7 +33,8 @@
 (primitive-codec int32 writeInt readInt)
 (primitive-codec uint32 writeInt readUnsignedInt)
 (primitive-codec int64 writeLong readLong)
-
+(primitive-codec float writeFloat readFloat)
+(primitive-codec double writeDouble readDouble)
 
 (defn- find-delimiter [^ChannelBuffer src ^bytes delim]
   (loop [sindex (.readerIndex src) dindex 0]
