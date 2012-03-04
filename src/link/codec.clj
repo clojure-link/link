@@ -17,61 +17,23 @@
 (defmacro decoder [args & body]
   `(fn ~args ~@body))
 
-(defcodec byte
-  (encoder [_ data buffer]
-           (.writeByte buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readByte buffer)))
+(defmacro primitive-codec [sname writer-fn reader-fn]
+  `(defcodec ~sname
+     (encoder [_# data# buffer#]
+              (. buffer# ~writer-fn data#)
+              buffer#)
+     (decoder [_# buffer#]
+              (. buffer# ~reader-fn))))
 
-(defcodec int16
-  (encoder [_ data buffer]
-           (.writeShort buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readShort buffer)))
+(primitive-codec byte writeByte readByte)
+(primitive-codec int16 writeShort readShort)
+(primitive-codec uint16 writeShort readUnsignedShort)
+(primitive-codec int24 writeMedium readMedium)
+(primitive-codec uint24 writeMedium readUnsignedMedium)
+(primitive-codec int32 writeInt readInt)
+(primitive-codec uint32 writeInt readUnsignedInt)
+(primitive-codec int64 writeLong readLong)
 
-(defcodec uint16
-  (encoder [_ data buffer]
-           (.writeShort buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readUnsignedShort buffer)))
-
-(defcodec int24
-  (encoder [_ data buffer]
-           (.writeMedium buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readMedium buffer)))
-
-(defcodec uint24
-  (encoder [_ data buffer]
-           (.writeMedium buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readUnsignedMedium buffer)))
-
-(defcodec int32
-  (encoder [_ data buffer]
-           (.writeInt buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readInt buffer)))
-
-(defcodec uint32
-  (encoder [_ data buffer]
-           (.writeInt buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readUnsignedInt buffer)))
-
-(defcodec int64
-  (encoder [_ data buffer]
-           (.writeLong buffer data)
-           buffer)
-  (decoder [_ buffer]
-           (.readLong buffer)))
 
 (defn- find-delimiter [^ChannelBuffer src ^bytes delim]
   (loop [sindex (.readerIndex src) dindex 0]
