@@ -41,21 +41,21 @@
     (if (= sindex (.writerIndex src))
       -1
       (if (= (.getByte src sindex) (aget delim dindex))
-        (if (= dindex (alength delim))
-          (- sindex (.readerIndex src))
+        (if (= dindex (- (alength delim) 1))
+          (+ (- sindex (.readerIndex src)) 1)
           (recur (inc sindex) (inc dindex)))
         (recur (inc sindex) 0)))))
 
 (defcodec string
   (encoder [options ^String data buffer]
-           (let [{prefix :prefix encoding :encoding delimiter :delimiter} options
+           (let [{:keys [prefix encoding delimiter]} options
                  encoding (name encoding)
                  bytes (.getBytes data encoding)]
              (cond
               ;; length prefix string
               (not (nil? prefix))
               (do
-                ((:encoder prefix ) nil (alength bytes) buffer)
+                ((:encoder (prefix)) (alength bytes) buffer)
                 (.writeBytes buffer ^bytes bytes))
               ;; delimiter based string
               (not (nil? delimiter))
@@ -64,13 +64,13 @@
                 (.writeBytes buffer ^bytes (.getBytes delimiter encoding)))))
            buffer)
   (decoder [options buffer]
-           (let [{prefix :prefix encoding :encoding delimiter :delimiter} options
+           (let [{:keys [prefix encoding delimiter]} options
                  encoding (name encoding)]
              (cond
               ;; length prefix string
               (not (nil? prefix))
               (do
-                (let [byte-length ((:decoder prefix) nil buffer)
+                (let [byte-length ((:decoder (prefix)) buffer)
                       bytes (byte-array byte-length)]
                   (.readBytes buffer ^bytes bytes)
                   (String. bytes encoding)))
@@ -89,12 +89,12 @@
   (encoder [options ^ByteBuffer data buffer]
            (let [{prefix :prefix} options
                  byte-length (.remaining data)]
-             ((:encoder prefix) byte-length buffer)
+             ((:encoder (prefix)) byte-length buffer)
              (.writeBytes buffer ^ByteBuffer data)
              buffer))
   (decoder [options buffer]
            (let [{prefix :prefix} options
-                 byte-length ((:decoder prefix) buffer)
+                 byte-length ((:decoder (prefix)) buffer)
                  local-buffer (ByteBuffer/allocate byte-length)]
              (.readBytes buffer ^ByteBuffer local-buffer)
              local-buffer)))
