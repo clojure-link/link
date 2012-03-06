@@ -21,7 +21,8 @@
        (clojure.core/float 32.455) (float)
        (clojure.core/double 32.455) (double)
        "helloworld" (string :prefix int16 :encoding :utf-8)
-       "link" (string :encoding :utf-8 :delimiter "\r\n")))
+       "link" (string :encoding :utf-8 :delimiter "\r\n")
+       :hello (enum (int16) {:hello 1 :world 2})))
 
 
 

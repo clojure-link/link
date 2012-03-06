@@ -99,6 +99,21 @@
              (.readBytes buffer ^ByteBuffer local-buffer)
              local-buffer)))
 
+(def ^{:private true} reversed-map
+  (memoize
+   (fn [m]
+     (apply hash-map (mapcat #(vector (val %) (key %)) m)))))
+
+(defcodec enum
+  (encoder [options data buffer]
+           (let [[codec mapping] options
+                 value (get mapping data)]
+             ((:encoder codec) value buffer)))
+  (decoder [options buffer]
+           (let [[codec mapping] options
+                 mapping (reversed-map mapping)
+                 value ((:decoder codec) buffer)]
+             (get mapping value))))
 ;;TODO
 
 (defn encode [codec data]
