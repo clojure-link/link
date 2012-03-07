@@ -114,6 +114,21 @@
                  mapping (reversed-map mapping)
                  value ((:decoder codec) buffer)]
              (get mapping value))))
+
+(defcodec header
+  (encoder [options data buffer]
+           (let [[enumer children] options
+                 [head body] data
+                 body-codec (get children head)]
+             ((:encoder enumer) head buffer)
+             ((:encoder body-codec) body buffer)
+             buffer))
+  (decoder [options buffer]
+           (let [[enumer children] options
+                 head ((:decoder enumer) buffer)
+                 body ((:decoder (get children head)) buffer)]
+             [head body])))
+
 ;;TODO
 
 (defn encode [codec data]
