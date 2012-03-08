@@ -6,9 +6,8 @@
 
 (deftest test-codecs
   (are [data codec]
-       (let [{encoder :encoder decoder :decoder} codec
-             buffer (ChannelBuffers/buffer 256)]
-         (is (= data (decoder (encoder data buffer)))))
+       (let [buffer (ChannelBuffers/buffer 256)]
+         (is (= data (decode codec (encode codec data buffer)))))
 
        1 (byte)
        1 (int16)
