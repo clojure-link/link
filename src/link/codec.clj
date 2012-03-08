@@ -131,6 +131,15 @@
                  body ((:decoder (get children head)) buffer)]
              [head body])))
 
+(defcodec frame
+  (encoder [options data buffer]
+           (let [codecs options]
+             (dorun (map #((:encoder %1) %2 buffer) codecs data))
+             buffer))
+  (decoder [options buffer]
+           (let [codecs options]
+             (doall (map #((:decoder %) buffer) codecs)))))
+
 ;;TODO
 
 (defn encode [codec data]

@@ -27,7 +27,12 @@
                          (enum (int16)
                                {:hello 1 :world 2})
                          {:hello (string :encoding :utf-8 :prefix byte)
-                          :world (int16)})))
+                          :world (int16)})
+       [1 1 (long 1) "helloworld"] (frame
+                                    (byte)
+                                    (int16)
+                                    (int64)
+                                    (string :prefix int32 :encoding :ascii))))
 
 
 
