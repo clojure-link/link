@@ -16,26 +16,27 @@
 (make-handler-macro connected)
 (make-handler-macro disconnected)
 
-(defmacro make-handler [& body]
-  `(let [handlers# (merge ~@body)]
-     (reify SimpleChannelUpstreamHandler
-       (channelClosed [this ctx e]
-         (if-let [handler# (:on-close handlers#)]
+(defmacro defhandler [n & body]
+  `(def ~n
+     (let [handlers# (merge ~@body)]
+       (reify SimpleChannelUpstreamHandler
+         (channelClosed [this ctx e]
+           (if-let [handler# (:on-close handlers#)]
+             (apply handler# ctx e)))
+         (channelConnected [this ctx e]
+           (if-let [handler# (:on-connected handlers#)]
+             (apply handler# ctx e)))
+         (channelDisconnected [this ctx e]
+           (if-let [handler# (:on-disconnected handlers#)]
+             (apply handler# ctx e)))
+         (channelOpen [this ctx e]
+           (if-let [handler# (:on-open handlers#)]
+             (apply handler# ctx e)))
+         (exceptionCaught [this ctx e]
+           (if-let [handler# (:on-error handlers#)]
            (apply handler# ctx e)))
-       (channelConnected [this ctx e]
-         (if-let [handler# (:on-connected handlers#)]
-           (apply handler# ctx e)))
-       (channelDisconnected [this ctx e]
-         (if-let [handler# (:on-disconnected handlers#)]
-           (apply handler# ctx e)))
-       (channelOpen [this ctx e]
-         (if-let [handler# (:on-open handlers#)]
-           (apply handler# ctx e)))
-       (exceptionCaught [this ctx e]
-         (if-let [handler# (:on-error handlers#)]
-           (apply handler# ctx e)))
-       (messageReceived [this ctx e]
-         (if-let [handler# (:on-message handlers#)]
-           (apply handler# ctx e))))))
+         (messageReceived [this ctx e]
+           (if-let [handler# (:on-message handlers#)]
+             (apply handler# ctx e)))))))
 
 
