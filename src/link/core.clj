@@ -19,22 +19,22 @@
 (defmacro make-handler [& body]
   `(let [handlers# (merge ~@body)]
      (reify SimpleChannelUpstreamHandler
-       (channelClosed [ctx e]
+       (channelClosed [this ctx e]
          (if-let [handler# (:on-close handlers#)]
            (apply handler# ctx e)))
-       (channelConnected [ctx e]
+       (channelConnected [this ctx e]
          (if-let [handler# (:on-connected handlers#)]
            (apply handler# ctx e)))
-       (channelDisconnected [ctx e]
+       (channelDisconnected [this ctx e]
          (if-let [handler# (:on-disconnected handlers#)]
            (apply handler# ctx e)))
-       (channelOpen [ctx e]
+       (channelOpen [this ctx e]
          (if-let [handler# (:on-open handlers#)]
            (apply handler# ctx e)))
-       (exceptionCaught [ctx e]
+       (exceptionCaught [this ctx e]
          (if-let [handler# (:on-error handlers#)]
            (apply handler# ctx e)))
-       (messageReceived [ctx e]
+       (messageReceived [this ctx e]
          (if-let [handler# (:on-message handlers#)]
            (apply handler# ctx e))))))
 
