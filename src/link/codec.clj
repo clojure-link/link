@@ -4,7 +4,12 @@
   (:import [java.nio ByteBuffer])
   (:import [org.jboss.netty.buffer
             ChannelBuffer
-            ChannelBuffers]))
+            ChannelBuffers])
+  (:import [org.jboss.netty.channel
+            Channels
+            ChannelDownstreamHandler
+            ChannelUpstreamHandler
+            MessageEvent]))
 
 (defmacro defcodec [sym encoder-fn decoder-fn]
   `(defn ~sym [& options#]
@@ -147,4 +152,23 @@
 
 (defn decode [codec buffer]
   ((:decoder codec) buffer))
+
+(defn netty-encoder [codec]
+  (reify ChannelDownstreamHandler
+    (handleDownstream [this ctx e]
+      (if-not (instance? MessageEvent e)
+        (.sendDownstream ctx e)
+        (do
+          (let [data (.getMessage e)
+                buffer (encode codec data)]
+            (Channels/write ctx (.getFuture e) buffer (.getRemoteAddress e))))))))
+
+(defn netty-decoder [codec]
+  (reify ChannelUpstreamHandler
+    (handleUpstream [this ctx e]
+      (if-not (instance? MessageEvent e)
+        (.sendUpstream ctx e)
+        (let [buffer (.getMessage e)
+              data (decode codec buffer)]
+          (Channels/fireMessageReceived ctx data (.getRemoteAddress e)))))))
 
