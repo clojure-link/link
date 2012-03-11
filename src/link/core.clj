@@ -19,24 +19,24 @@
 (defmacro defhandler [n & body]
   `(def ~n
      (let [handlers# (merge ~@body)]
-       (reify SimpleChannelUpstreamHandler
-         (channelClosed [this ctx e]
+       (proxy [SimpleChannelUpstreamHandler] []
+         (channelClosed [ctx# e#]
            (if-let [handler# (:on-close handlers#)]
-             (apply handler# ctx e)))
-         (channelConnected [this ctx e]
+             (apply handler# ctx# e#)))
+         (channelConnected [ctx# e#]
            (if-let [handler# (:on-connected handlers#)]
-             (apply handler# ctx e)))
-         (channelDisconnected [this ctx e]
+             (apply handler# ctx# e#)))
+         (channelDisconnected [ctx# e#]
            (if-let [handler# (:on-disconnected handlers#)]
-             (apply handler# ctx e)))
-         (channelOpen [this ctx e]
+             (apply handler# ctx# e#)))
+         (channelOpen [ctx# e#]
            (if-let [handler# (:on-open handlers#)]
-             (apply handler# ctx e)))
-         (exceptionCaught [this ctx e]
+             (apply handler# ctx# e#)))
+         (exceptionCaught [ctx# e#]
            (if-let [handler# (:on-error handlers#)]
-           (apply handler# ctx e)))
-         (messageReceived [this ctx e]
+             (apply handler# ctx# e#)))
+         (messageReceived [ctx# e#]
            (if-let [handler# (:on-message handlers#)]
-             (apply handler# ctx e)))))))
+             (apply handler# ctx# e#)))))))
 
 
