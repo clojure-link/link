@@ -70,7 +70,12 @@
                                exhausted-action :block
                                max-wait -1
                                max-idle 8}}]
-  (let [open-fn (fn [] (apply tcp-client host port handler options))
+  (let [open-fn (fn [] (tcp-client host port handler
+                                  :encoder encoder
+                                  :decoder decoder
+                                  :codec codec
+                                  :boss-pool boss-pool
+                                  :worker-pool worker-pool))
         close-fn (fn [c] (.close c))
         validate-fn (fn [c] (.isOpen c))
         factory (pool-factory :close-fn close-fn
