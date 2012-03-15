@@ -2,7 +2,7 @@
   (:use [link.core])
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
-  (:import [java.io File InputStream])
+  (:import [java.io File InputStream PrintStream])
   (:import [java.net InetSocketAddress])
   (:import [java.util.concurrent Executors])
   (:import [org.jboss.netty.channel
@@ -22,21 +22,20 @@
             HttpRequest
             HttpHeaders
             HttpHeaders$Names
-            DefaultHttpResponse
-            HttpRequestDecoder
-            HttpResponseEncoder]))
+            HttpServerCodec
+            HttpResponseStatus
+            DefaultHttpResponse]))
 
 (defn create-http-pipeline [handler]
   (reify ChannelPipelineFactory
     (getPipeline [this]
       (let [pipeline (Channels/pipeline)]
-        (.addLast pipeline "decoder" (HttpRequestDecoder.))
-        (.addLast pipeline "encoder" (HttpResponseEncoder.))
+        (.addLast pipeline "codec" (HttpServerCodec.))
         (.addLast pipeline "handler" handler)))))
 
 (defn- as-map [headers]
-  ;;TODO
-  )
+  (apply hash-map
+         (flatten (map #(vector (key %) (val %)) headers))))
 
 (defn ring-request [^Channel c ^MessageEvent e]
   (let [server-addr (.getLocalAddress c)
@@ -57,7 +56,9 @@
 
 (defn ring-response [resp]
   (let [{status :status headers :headers body :body} resp
-        netty-response (DefaultHttpResponse. HttpVersion/HTTP_1_1 status)]
+        netty-response (DefaultHttpResponse.
+                         HttpVersion/HTTP_1_1
+                         (HttpResponseStatus/valueOf status))]
     
     ;; write headers
     (doseq [header headers]
@@ -89,8 +90,19 @@
 (defn create-http-handler-from-ring [ring-fn]
   (create-handler
    (on-message [ctx e]
-               ;;TODO
-               )))
+               (let [channel (.getChannel ctx)
+                     req (ring-request channel e)
+                     resp (ring-fn req)]
+                  (.write channel (ring-response resp))))
+   (on-error [ctx e]
+             (let [resp (DefaultHttpResponse.
+                          HttpVersion/HTTP_1_1
+                          HttpResponseStatus/INTERNAL_SERVER_ERROR)
+                   resp-out (ChannelBufferOutputStream.
+                             (ChannelBuffers/dynamicBuffer))]
+               (-> (.getCause e)
+                   (.printStackTrace (PrintStream. resp-out)))
+               (.write (.getChannel ctx) resp)))))
 
 (defn http-server [port ring-fn
                    & {:keys [boss-pool worker-pool]
