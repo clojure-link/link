@@ -1,6 +1,8 @@
 (ns link.http
   (:use [link.core])
   (:use [clojure.string :only [lower-case]])
+  (:use [clojure.java.io :only [input-stream copy]])
+  (:import [java.io File InputStream])
   (:import [java.net InetSocketAddress])
   (:import [java.util.concurrent Executors])
   (:import [org.jboss.netty.channel
@@ -9,11 +11,14 @@
             ChannelPipelineFactory
             MessageEvent])
   (:import [org.jboss.netty.buffer
-            ChannelBufferInputStream])
+            ChannelBuffers
+            ChannelBufferInputStream
+            ChannelBufferOutputStream])
   (:import [org.jboss.netty.bootstrap ServerBootstrap])
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory])
   (:import [org.jboss.netty.handler.codec.http
+            HttpVersion
             HttpRequest
             HttpHeaders
             HttpHeaders$Names
@@ -28,6 +33,10 @@
         (.addLast pipeline "decoder" (HttpRequestDecoder.))
         (.addLast pipeline "encoder" (HttpResponseEncoder.))
         (.addLast pipeline "handler" handler)))))
+
+(defn- as-map [headers]
+  ;;TODO
+  )
 
 (defn ring-request [^Channel c ^MessageEvent e]
   (let [server-addr (.getLocalAddress c)
@@ -45,6 +54,37 @@
      :character-encoding (HttpHeaders/getHeader req HttpHeaders$Names/CONTENT_ENCODING)
      :headers (as-map (.getHeaders req))
      :body (ChannelBufferInputStream. (.getContent req))}))
+
+(defn ring-response [resp]
+  (let [{status :status headers :headers body :body} resp
+        netty-response (DefaultHttpResponse. HttpVersion/HTTP_1_1 status)]
+    
+    ;; write headers
+    (doseq [header headers]
+      (.setHeader netty-response (key header) (val header)))
+
+    ;; write body
+    (cond
+     (instance? String body)
+     (.setContent netty-response (ChannelBuffers/wrappedBuffer (.getBytes body "UTF-8")))
+     (sequential? body)
+     (let [buffer (ChannelBuffers/dynamicBuffer)]
+       (doseq [line body]
+         (.writeBytes buffer (.getBytes line "UTF-8")))
+       (.setContent netty-response buffer))
+     (instance? File body)
+     (let [buffer (ChannelBuffers/dynamicBuffer)
+           buffer-out (ChannelBufferOutputStream. buffer)
+           file-in (input-stream body)]
+       (copy file-in buffer-out)
+       (.setContent netty-response buffer))
+     (instance? InputStream body)
+     (let [buffer (ChannelBuffers/dynamicBuffer)
+           buffer-out (ChannelBufferOutputStream. buffer)]
+       (copy body buffer-out)
+       (.setContent netty-response buffer)))
+    
+    netty-response))
 
 (defn create-http-handler-from-ring [ring-fn]
   (create-handler
