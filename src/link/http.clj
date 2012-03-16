@@ -103,11 +103,11 @@
              (let [resp (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
                           HttpResponseStatus/INTERNAL_SERVER_ERROR)
-                   resp-out (ChannelBufferOutputStream.
-                             (ChannelBuffers/dynamicBuffer))]
+                   resp-buf (ChannelBuffers/dynamicBuffer)
+                   resp-out (ChannelBufferOutputStream. resp-buf)]
                (-> (.getCause e)
                    (.printStackTrace (PrintStream. resp-out)))
-               (.setContent resp resp-out)
+               (.setContent resp resp-buf)
                (.write (.getChannel ctx) resp)))))
 
 (defn http-server [port ring-fn
