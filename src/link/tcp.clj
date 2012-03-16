@@ -60,7 +60,8 @@
         getChannel)))
 
 (defn tcp-client-pool [host port handler
-                       & {:keys [encoder decoder codec boss-pool worker-pool]
+                       & {:keys [encoder decoder codec boss-pool worker-pool
+                                 max-active exhausted-action max-wait max-idle]
                           :or {encoder nil
                                decoder nil
                                codec nil
