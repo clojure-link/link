@@ -38,9 +38,9 @@
   (apply hash-map
          (flatten (map #(vector (key %) (val %)) headers))))
 
-(defn- find-query-string [uri]
-  (if (< 0 (.indexOf uri \?))
-    (subs uri (+ 1 (.indexOf uri) \?))))
+(defn- find-query-string [^String uri]
+  (if (< 0 (.indexOf uri "?"))
+    (subs uri (+ 1 (.indexOf uri) "?"))))
 
 (defn ring-request [^Channel c ^MessageEvent e]
   (let [server-addr (.getLocalAddress c)
@@ -64,7 +64,6 @@
         netty-response (DefaultHttpResponse.
                          HttpVersion/HTTP_1_1
                          (HttpResponseStatus/valueOf status))]
-    
     ;; write headers
     (doseq [header (or headers {})]
       (.setHeader netty-response (key header) (val header)))
@@ -72,7 +71,9 @@
     ;; write body
     (cond
      (instance? String body)
-     (.setContent netty-response (ChannelBuffers/wrappedBuffer (.getBytes body "UTF-8")))
+     (let [bytes (.getBytes body "UTF-8")]
+       (.setHeader netty-response HttpHeaders$Names/CONTENT_LENGTH (alength bytes))
+       (.setContent netty-response (ChannelBuffers/wrappedBuffer bytes)))
      (sequential? body)
      (let [buffer (ChannelBuffers/dynamicBuffer)]
        (doseq [line body]
