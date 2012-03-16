@@ -31,11 +31,16 @@
     (getPipeline [this]
       (let [pipeline (Channels/pipeline)]
         (.addLast pipeline "codec" (HttpServerCodec.))
-        (.addLast pipeline "handler" handler)))))
+        (.addLast pipeline "handler" handler)
+        pipeline))))
 
 (defn- as-map [headers]
   (apply hash-map
          (flatten (map #(vector (key %) (val %)) headers))))
+
+(defn- find-query-string [uri]
+  (if (< 0 (.indexOf uri \?))
+    (subs uri (+ 1 (.indexOf uri) \?))))
 
 (defn ring-request [^Channel c ^MessageEvent e]
   (let [server-addr (.getLocalAddress c)
@@ -45,7 +50,7 @@
      :server-port (.getPort server-addr)
      :remote-addr (.getHostName addr)
      :uri (.getUri req)
-     :query-string (subs (.getUri req) (+ 1 (.indexOf (.getUri req) \?)))
+     :query-string (find-query-string (.getUri req))
      :scheme :http
      :request-method (keyword (lower-case (.. req getMethod getName)))
      :content-type (HttpHeaders/getHeader req HttpHeaders$Names/CONTENT_TYPE)
@@ -61,7 +66,7 @@
                          (HttpResponseStatus/valueOf status))]
     
     ;; write headers
-    (doseq [header headers]
+    (doseq [header (or headers {})]
       (.setHeader netty-response (key header) (val header)))
 
     ;; write body
@@ -102,6 +107,7 @@
                              (ChannelBuffers/dynamicBuffer))]
                (-> (.getCause e)
                    (.printStackTrace (PrintStream. resp-out)))
+               (.setContent resp resp-out)
                (.write (.getChannel ctx) resp)))))
 
 (defn http-server [port ring-fn
