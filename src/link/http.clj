@@ -59,6 +59,9 @@
      :headers (as-map (.getHeaders req))
      :body (ChannelBufferInputStream. (.getContent req))}))
 
+(defn- set-content-length [resp length]
+  (.setHeader resp HttpHeaders$Names/CONTENT_LENGTH length))
+
 (defn ring-response [resp]
   (let [{status :status headers :headers body :body} resp
         netty-response (DefaultHttpResponse.
@@ -72,23 +75,30 @@
     (cond
      (instance? String body)
      (let [bytes (.getBytes body "UTF-8")]
-       (.setHeader netty-response HttpHeaders$Names/CONTENT_LENGTH (alength bytes))
+       (set-content-length netty-response (alength bytes))
        (.setContent netty-response (ChannelBuffers/wrappedBuffer bytes)))
      (sequential? body)
-     (let [buffer (ChannelBuffers/dynamicBuffer)]
-       (doseq [line body]
-         (.writeBytes buffer (.getBytes line "UTF-8")))
+     (let [buffer (ChannelBuffers/dynamicBuffer)
+           line-bytes (map (memfn getBytes "UTF-8") body)
+           content-length (reduce + line-bytes)]
+       (doseq [line line-bytes]
+         (.writeBytes buffer line))
+       (set-content-length netty-response content-length)
        (.setContent netty-response buffer))
      (instance? File body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            buffer-out (ChannelBufferOutputStream. buffer)
+           file-size (.length body)
            file-in (input-stream body)]
        (copy file-in buffer-out)
+       (set-content-length netty-response file-size)
        (.setContent netty-response buffer))
      (instance? InputStream body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
-           buffer-out (ChannelBufferOutputStream. buffer)]
+           buffer-out (ChannelBufferOutputStream. buffer)
+           clength (.available body)]
        (copy body buffer-out)
+       (set-content-length netty-response clength)
        (.setContent netty-response buffer)))
     
     netty-response))
