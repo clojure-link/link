@@ -80,7 +80,7 @@
      (sequential? body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            line-bytes (map #(.getBytes % "UTF-8") body)
-           content-length (reduce #(+ (alength %1) %2) line-bytes)]
+           content-length (reduce #(+ (alength %2) %1) 0 line-bytes)]
        (doseq [line line-bytes]
          (.writeBytes buffer line))
        (set-content-length netty-response content-length)
