@@ -79,8 +79,8 @@
        (.setContent netty-response (ChannelBuffers/wrappedBuffer bytes)))
      (sequential? body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
-           line-bytes (map (memfn getBytes "UTF-8") body)
-           content-length (reduce + line-bytes)]
+           line-bytes (map #(.getBytes % "UTF-8") body)
+           content-length (reduce #(+ (alength %1) %2) line-bytes)]
        (doseq [line line-bytes]
          (.writeBytes buffer line))
        (set-content-length netty-response content-length)
