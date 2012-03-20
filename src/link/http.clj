@@ -40,17 +40,23 @@
 
 (defn- find-query-string [^String uri]
   (if (< 0 (.indexOf uri "?"))
-    (subs uri (+ 1 (.indexOf uri) "?"))))
+    (subs uri (+ 1 (.indexOf uri "?")))))
+
+(defn- find-request-uri [^String uri]
+  (if (< 0 (.indexOf uri "?"))
+    (subs uri 0 (.indexOf uri "?"))
+    uri))
 
 (defn ring-request [^Channel c ^MessageEvent e]
   (let [server-addr (.getLocalAddress c)
         addr (.getRemoteAddress e)
-        req (.getMessage e)]
+        req (.getMessage e)
+        uri (.getUri req)]
     {:server-addr (.getHostName server-addr)
      :server-port (.getPort server-addr)
      :remote-addr (.getHostName addr)
-     :uri (.getUri req)
-     :query-string (find-query-string (.getUri req))
+     :uri (find-request-uri uri)
+     :query-string (find-query-string uri)
      :scheme :http
      :request-method (keyword (lower-case (.. req getMethod getName)))
      :content-type (HttpHeaders/getHeader req HttpHeaders$Names/CONTENT_TYPE)
