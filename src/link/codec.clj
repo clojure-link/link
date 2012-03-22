@@ -104,6 +104,7 @@
                  byte-length ((:decoder (prefix)) buffer)
                  local-buffer (ByteBuffer/allocate byte-length)]
              (.readBytes buffer ^ByteBuffer local-buffer)
+             (.rewind local-buffer)
              local-buffer)))
 
 (def ^{:private true} reversed-map
