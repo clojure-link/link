@@ -24,37 +24,44 @@
         (.addLast pipeline "handler" handler)
         pipeline))))
 
-(defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool]
+(defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool tcp-options]
   (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
         bootstrap (ServerBootstrap. factory)
         pipeline (create-pipeline handler encoder decoder)]
     (.setPipelineFactory bootstrap pipeline)
+    (.setOptions bootstrap tcp-options)
     (.bind bootstrap (InetSocketAddress. port))))
 
 (defn tcp-server [port handler
-                  & {:keys [encoder decoder codec boss-pool worker-pool]
+                  & {:keys [encoder decoder codec boss-pool worker-pool tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
                           boss-pool (Executors/newCachedThreadPool)
-                          worker-pool (Executors/newCachedThreadPool)}}]
+                          worker-pool (Executors/newCachedThreadPool)
+                          tcp-options {}}}]
   (let [encoder (or encoder codec)
         decoder (or decoder codec)]
-    (start-tcp-server port handler encoder decoder boss-pool worker-pool)))
+    (start-tcp-server port handler
+                      encoder decoder
+                      boss-pool worker-pool
+                      tcp-options)))
 
 (defn tcp-client [host port handler
-                  & {:keys [encoder decoder codec boss-pool worker-pool]
+                  & {:keys [encoder decoder codec boss-pool worker-pool tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
                           boss-pool (Executors/newCachedThreadPool)
-                          worker-pool (Executors/newCachedThreadPool)}}]
+                          worker-pool (Executors/newCachedThreadPool)
+                          tcp-options {}}}]
   (let [encoder (or encoder codec)
         decoder (or decoder codec)
         bootstrap (ClientBootstrap.
                    (NioClientSocketChannelFactory. boss-pool worker-pool))
         pipeline (create-pipeline handler encoder decoder)]
     (.setPipelineFactory bootstrap pipeline)
+    (.setOptions bootstrap tcp-options)
     (.. (.connect bootstrap (InetSocketAddress. host port))
         awaitUninterruptibly
         getChannel)))
