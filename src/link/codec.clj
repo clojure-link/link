@@ -61,7 +61,7 @@
               ;; length prefix string
               [_ nil]
               (do
-                ((:encoder (prefix)) (alength bytes) buffer)
+                ((:encoder prefix) (alength bytes) buffer)
                 (.writeBytes buffer ^bytes bytes))
               ;; delimiter based string
               [nil _]
@@ -77,7 +77,7 @@
               ;; length prefix string
               [_ nil]
               (do
-                (let [byte-length ((:decoder (prefix)) buffer)
+                (let [byte-length ((:decoder prefix) buffer)
                       bytes (byte-array byte-length)]
                   (.readBytes buffer ^bytes bytes)
                   (String. bytes encoding)))
@@ -96,12 +96,12 @@
   (encoder [options ^ByteBuffer data buffer]
            (let [{prefix :prefix} options
                  byte-length (.remaining data)]
-             ((:encoder (prefix)) byte-length buffer)
+             ((:encoder prefix) byte-length buffer)
              (.writeBytes buffer ^ByteBuffer data)
              buffer))
   (decoder [options buffer]
            (let [{prefix :prefix} options
-                 byte-length ((:decoder (prefix)) buffer)
+                 byte-length ((:decoder prefix) buffer)
                  local-buffer (ByteBuffer/allocate byte-length)]
              (.readBytes buffer ^ByteBuffer local-buffer)
              (.rewind local-buffer)

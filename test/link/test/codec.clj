@@ -19,19 +19,19 @@
        (long 1000) (int64)
        (clojure.core/float 32.455) (float)
        (clojure.core/double 32.455) (double)
-       "helloworld" (string :prefix int16 :encoding :utf-8)
+       "helloworld" (string :prefix (int16) :encoding :utf-8)
        "link" (string :encoding :utf-8 :delimiter "\r\n")
        :hello (enum (int16) {:hello 1 :world 2})
        [:hello "world"] (header
                          (enum (int16)
                                {:hello 1 :world 2})
-                         {:hello (string :encoding :utf-8 :prefix byte)
+                         {:hello (string :encoding :utf-8 :prefix (byte))
                           :world (int16)})
        [1 1 (long 1) "helloworld"] (frame
                                     (byte)
                                     (int16)
                                     (int64)
-                                    (string :prefix int32 :encoding :ascii))))
+                                    (string :prefix (int32) :encoding :ascii))))
 
 
 
