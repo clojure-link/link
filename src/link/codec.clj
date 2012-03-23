@@ -125,7 +125,8 @@
 (defcodec header
   (encoder [options data buffer]
            (let [[enumer children] options
-                 [head body] data
+                 head (first data)
+                 body (second data)
                  body-codec (get children head)]
              ((:encoder enumer) head buffer)
              ((:encoder body-codec) body buffer)
