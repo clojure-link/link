@@ -79,10 +79,14 @@
 
     ;; write body
     (cond
+     (nil? body)
+     (set-content-length netty-response 0)
+     
      (instance? String body)
      (let [bytes (.getBytes body "UTF-8")]
        (set-content-length netty-response (alength bytes))
        (.setContent netty-response (ChannelBuffers/wrappedBuffer bytes)))
+     
      (sequential? body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            line-bytes (map #(.getBytes % "UTF-8") body)
@@ -91,6 +95,7 @@
          (.writeBytes buffer line))
        (set-content-length netty-response content-length)
        (.setContent netty-response buffer))
+     
      (instance? File body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            buffer-out (ChannelBufferOutputStream. buffer)
@@ -99,6 +104,7 @@
        (copy file-in buffer-out)
        (set-content-length netty-response file-size)
        (.setContent netty-response buffer))
+     
      (instance? InputStream body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            buffer-out (ChannelBufferOutputStream. buffer)
