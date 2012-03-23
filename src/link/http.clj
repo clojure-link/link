@@ -131,6 +131,9 @@
                (-> (.getCause e)
                    (.printStackTrace (PrintStream. resp-out)))
                (.setContent resp resp-buf)
+               (set-content-length resp
+                                   (- (.writerIndex resp-buf)
+                                      (.readerIndex resp-buf)))
                (.write (.getChannel ctx) resp)))))
 
 (defn http-server [port ring-fn
