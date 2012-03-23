@@ -63,7 +63,8 @@
      :content-length (HttpHeaders/getContentLength req)
      :character-encoding (HttpHeaders/getHeader req HttpHeaders$Names/CONTENT_ENCODING)
      :headers (as-map (.getHeaders req))
-     :body (ChannelBufferInputStream. (.getContent req))}))
+     :body (let [cbis (ChannelBufferInputStream. (.getContent req))]
+             (if (> (.available cbis) 0) cbis))}))
 
 (defn- write-content [resp buffer]
   (.setHeader resp HttpHeaders$Names/CONTENT_LENGTH
