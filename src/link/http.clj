@@ -115,7 +115,7 @@
     
     netty-response))
 
-(defn create-http-handler-from-ring [ring-fn]
+(defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
    (on-message [ctx e]
                (let [channel (.getChannel ctx)
@@ -128,8 +128,12 @@
                           HttpResponseStatus/INTERNAL_SERVER_ERROR)
                    resp-buf (ChannelBuffers/dynamicBuffer)
                    resp-out (ChannelBufferOutputStream. resp-buf)]
-               (-> (.getCause e)
-                   (.printStackTrace (PrintStream. resp-out)))
+               
+               (if debug
+                 (-> (.getCause e)
+                     (.printStackTrace (PrintStream. resp-out)))
+                 (.writeBytes resp-buf (.getBytes "Internal Error" "UTF-8")))
+               
                (.setContent resp resp-buf)
                (set-content-length resp
                                    (- (.writerIndex resp-buf)
@@ -137,13 +141,14 @@
                (.write (.getChannel ctx) resp)))))
 
 (defn http-server [port ring-fn
-                   & {:keys [boss-pool worker-pool]
+                   & {:keys [boss-pool worker-pool debug]
                       :or {boss-pool (Executors/newCachedThreadPool)
-                           worker-pool (Executors/newCachedThreadPool)}}]
+                           worker-pool (Executors/newCachedThreadPool)
+                           debug false}}]
   (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
         bootstrap (ServerBootstrap. factory)
         pipeline (create-http-pipeline
-                  (create-http-handler-from-ring ring-fn))]
+                  (create-http-handler-from-ring ring-fn debug))]
     (.setPipelineFactory bootstrap pipeline)
     (.bind bootstrap (InetSocketAddress. port))))
 
