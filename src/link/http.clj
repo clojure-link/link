@@ -68,7 +68,7 @@
 
 (defn- write-content [resp buffer]
   (.setHeader resp HttpHeaders$Names/CONTENT_LENGTH
-              (- (.writerIndex buffer) (.readerIndex buffer)))
+              (.readableBytes buffer))
   (.setContent resp buffer))
 
 (defn ring-response [resp]

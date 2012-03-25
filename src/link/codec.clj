@@ -76,10 +76,11 @@
               ;; length prefix string
               (nil? delimiter)
               (do
-                (let [byte-length ((:decoder prefix) buffer)
-                      bytes (byte-array byte-length)]
-                  (.readBytes buffer ^bytes bytes)
-                  (String. bytes encoding)))
+                (let [byte-length ((:decoder prefix) buffer)]
+                  (if-not (> byte-length (.readableBytes buffer))
+                    (let [bytes (byte-array byte-length)]
+                      (.readBytes buffer ^bytes bytes)
+                      (String. bytes encoding)))))
 
               ;; delimiter based string
               (nil? prefix)
@@ -100,11 +101,12 @@
              buffer))
   (decoder [options buffer]
            (let [{prefix :prefix} options
-                 byte-length ((:decoder prefix) buffer)
-                 local-buffer (ByteBuffer/allocate byte-length)]
-             (.readBytes buffer ^ByteBuffer local-buffer)
-             (.rewind local-buffer)
-             local-buffer)))
+                 byte-length ((:decoder prefix) buffer)]
+             (if-not (> byte-length (.readableBytes buffer))
+               (let [local-buffer (ByteBuffer/allocate byte-length)]
+                 (.readBytes buffer ^ByteBuffer local-buffer)
+                 (.rewind local-buffer)
+                 local-buffer)))))
 
 (def ^{:private true} reversed-map
   (memoize
@@ -122,6 +124,11 @@
                  value ((:decoder codec) buffer)]
              (get mapping value))))
 
+(defmacro dbg [x]
+  `(let [x# ~x]
+    (println "dbg:" '~x "=" x#)
+    x#))
+
 (defcodec header
   (encoder [options data buffer]
            (let [[enumer children] options
@@ -133,9 +140,10 @@
              buffer))
   (decoder [options buffer]
            (let [[enumer children] options
-                 head ((:decoder enumer) buffer)
-                 body ((:decoder (get children head)) buffer)]
-             [head body])))
+                 head (dbg ((:decoder enumer) buffer))
+                 body ((dbg (:decoder (dbg (get children head)))) buffer)]
+             (if-not (nil? body)
+               [head body]))))
 
 (defcodec frame
   (encoder [options data buffer]
@@ -144,7 +152,11 @@
              buffer))
   (decoder [options buffer]
            (let [codecs options]
-             (doall (map #((:decoder %) buffer) codecs)))))
+             (loop [c codecs r []]
+               (if (empty? c)
+                 r
+                 (if-let [r0 ((:decoder (first c)) buffer)] 
+                   (recur (rest c) (conj r r0))))))))
 
 (defn encode
   ([codec data] (encode codec data (ChannelBuffers/dynamicBuffer)))
@@ -165,11 +177,16 @@
             (Channels/write ctx (.getFuture e) buffer (.getRemoteAddress e))))))))
 
 (defn netty-decoder [codec]
+  ;; TODO need cumulation support
   (reify ChannelUpstreamHandler
     (handleUpstream [this ctx e]
       (if-not (instance? MessageEvent e)
         (.sendUpstream ctx e)
         (let [buffer (.getMessage e)
               data (decode codec buffer)]
-          (Channels/fireMessageReceived ctx data (.getRemoteAddress e)))))))
+          (.markReaderIndex buffer)
+          (if-not (nil? data)
+            (Channels/fireMessageReceived ctx data (.getRemoteAddress e))
+            (do
+              (.resetReaderIndex buffer))))))))
 
