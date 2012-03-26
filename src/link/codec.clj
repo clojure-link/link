@@ -8,7 +8,9 @@
             Channels
             ChannelDownstreamHandler
             ChannelUpstreamHandler
-            MessageEvent]))
+            ChannelEvent
+            MessageEvent
+            ChannelHandlerContext]))
 
 (defmacro defcodec [sym encoder-fn decoder-fn]
   `(defn ~sym [& options#]
@@ -24,10 +26,10 @@
 
 (defmacro primitive-codec [sname writer-fn reader-fn]
   `(defcodec ~sname
-     (encoder [_# data# buffer#]
+     (encoder [_# data# ^ChannelBuffer buffer#]
               (. buffer# ~writer-fn data#)
               buffer#)
-     (decoder [_# buffer#]
+     (decoder [_# ^ChannelBuffer buffer#]
               (. buffer# ~reader-fn))))
 
 (primitive-codec byte writeByte readByte)
@@ -45,14 +47,14 @@
   (loop [sindex (.readerIndex src) dindex 0]
     (if (= sindex (.writerIndex src))
       -1
-      (if (= (.getByte src sindex) (aget delim dindex))
+      (if (= ^Byte (.getByte src sindex) ^Byte (aget delim dindex))
         (if (= dindex (- (alength delim) 1))
           (+ (- sindex (.readerIndex src)) 1)
           (recur (inc sindex) (inc dindex)))
         (recur (inc sindex) 0)))))
 
 (defcodec string
-  (encoder [options ^String data buffer]
+  (encoder [options ^String data ^ChannelBuffer buffer]
            (let [{:keys [prefix encoding delimiter]} options
                  encoding (name encoding)
                  bytes (.getBytes data encoding)]
@@ -67,9 +69,9 @@
               (do
                 (.writeBytes buffer ^bytes bytes)
                 (.writeBytes buffer ^bytes
-                             (.getBytes delimiter encoding)))))
+                             (.getBytes ^String delimiter encoding)))))
            buffer)
-  (decoder [options buffer]
+  (decoder [options ^ChannelBuffer buffer]
            (let [{:keys [prefix encoding delimiter]} options
                  encoding (name encoding)]
              (cond
@@ -85,21 +87,21 @@
               ;; delimiter based string
               (nil? prefix)
               (do
-                (let [dbytes (.getBytes delimiter encoding)
+                (let [dbytes (.getBytes ^String delimiter encoding)
                       dlength (find-delimiter buffer dbytes)
-                      slength (- dlength (alength dbytes))
+                      slength (- dlength (alength ^bytes dbytes))
                       sbytes (byte-array slength)]
                   (.readBytes buffer ^bytes sbytes)
                   (String. sbytes encoding)))))))
 
 (defcodec byte-block
-  (encoder [options ^ByteBuffer data buffer]
+  (encoder [options ^ByteBuffer data ^ChannelBuffer buffer]
            (let [{prefix :prefix} options
                  byte-length (.remaining data)]
              ((:encoder prefix) byte-length buffer)
              (.writeBytes buffer ^ByteBuffer data)
              buffer))
-  (decoder [options buffer]
+  (decoder [options ^ChannelBuffer buffer]
            (let [{prefix :prefix} options
                  byte-length ((:decoder prefix) buffer)]
              (if-not (> byte-length (.readableBytes buffer))
@@ -114,18 +116,18 @@
      (apply hash-map (mapcat #(vector (val %) (key %)) m)))))
 
 (defcodec enum
-  (encoder [options data buffer]
+  (encoder [options data ^ChannelBuffer buffer]
            (let [[codec mapping] options
                  value (get mapping data)]
              ((:encoder codec) value buffer)))
-  (decoder [options buffer]
+  (decoder [options ^ChannelBuffer buffer]
            (let [[codec mapping] options
                  mapping (reversed-map mapping)
                  value ((:decoder codec) buffer)]
              (get mapping value))))
 
 (defcodec header
-  (encoder [options data buffer]
+  (encoder [options data ^ChannelBuffer buffer]
            (let [[enumer children] options
                  head (first data)
                  body (second data)
@@ -133,7 +135,7 @@
              ((:encoder enumer) head buffer)
              ((:encoder body-codec) body buffer)
              buffer))
-  (decoder [options buffer]
+  (decoder [options ^ChannelBuffer buffer]
            (let [[enumer children] options
                  head ((:decoder enumer) buffer)
                  body ((:decoder (get children head)) buffer)]
@@ -141,11 +143,11 @@
                [head body]))))
 
 (defcodec frame
-  (encoder [options data buffer]
+  (encoder [options data ^ChannelBuffer buffer]
            (let [codecs options]
              (dorun (map #((:encoder %1) %2 buffer) codecs data))
              buffer))
-  (decoder [options buffer]
+  (decoder [options ^ChannelBuffer buffer]
            (let [codecs options]
              (loop [c codecs r []]
                (if (empty? c)
@@ -155,36 +157,42 @@
 
 (defn encode
   ([codec data] (encode codec data (ChannelBuffers/dynamicBuffer)))
-  ([codec data buffer]
+  ([codec data ^ChannelBuffer buffer]
      ((:encoder codec) data buffer)))
 
-(defn decode [codec buffer]
+(defn decode [codec ^ChannelBuffer buffer]
   ((:decoder codec) buffer))
 
 (defn netty-encoder [codec]
   (reify ChannelDownstreamHandler
-    (handleDownstream [this ctx e]
+    (^void handleDownstream [this
+                       ^ChannelHandlerContext ctx
+                       ^ChannelEvent e]
       (if-not (instance? MessageEvent e)
         (.sendDownstream ctx e)
         (do
-          (let [data (.getMessage e)
+          (let [data (.getMessage ^MessageEvent e)
                 buffer (encode codec data)]
-            (Channels/write ctx (.getFuture e) buffer (.getRemoteAddress e))))))))
+            (Channels/write ctx (.getFuture e) buffer
+                            (.getRemoteAddress ^MessageEvent e))))))))
 
 (defn netty-decoder [codec]
   (let [cumulation (ChannelBuffers/dynamicBuffer)]
     (reify ChannelUpstreamHandler
-     (handleUpstream [this ctx e]
+      (^void handleUpstream [this
+                             ^ChannelHandlerContext ctx
+                             ^ChannelEvent e]
        (if-not (instance? MessageEvent e)
          (.sendUpstream ctx e)
-         (let [in (.getMessage e)]
-           (.writeBytes cumulation in)
+         (let [in (.getMessage ^MessageEvent e)]
+           (.writeBytes ^ChannelBuffer cumulation ^ChannelBuffer in)
            (loop []
              (when (.readable cumulation)
                (.markReaderIndex cumulation)
                (if-let [data (decode codec cumulation)]
                  (do
-                   (Channels/fireMessageReceived ctx data (.getRemoteAddress e))
+                   (Channels/fireMessageReceived
+                    ctx data (.getRemoteAddress ^MessageEvent e))
                    (recur))
                  (do
                    (.resetReaderIndex cumulation)))))

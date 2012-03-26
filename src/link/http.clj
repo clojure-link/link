@@ -9,8 +9,11 @@
             Channel
             Channels
             ChannelPipelineFactory
-            MessageEvent])
+            ChannelHandlerContext
+            MessageEvent
+            ExceptionEvent])
   (:import [org.jboss.netty.buffer
+            ChannelBuffer
             ChannelBuffers
             ChannelBufferInputStream
             ChannelBufferOutputStream])
@@ -20,6 +23,7 @@
   (:import [org.jboss.netty.handler.codec.http
             HttpVersion
             HttpRequest
+            HttpResponse
             HttpHeaders
             HttpHeaders$Names
             HttpServerCodec
@@ -51,25 +55,31 @@
   (let [server-addr (.getLocalAddress c)
         addr (.getRemoteAddress e)
         req (.getMessage e)
-        uri (.getUri req)]
-    {:server-addr (.getHostName server-addr)
-     :server-port (.getPort server-addr)
-     :remote-addr (.getHostName addr)
+        uri (.getUri ^HttpRequest req)]
+    {:server-addr (.getHostName ^InetSocketAddress server-addr)
+     :server-port (.getPort ^InetSocketAddress server-addr)
+     :remote-addr (.getHostName ^InetSocketAddress addr)
      :uri (find-request-uri uri)
      :query-string (find-query-string uri)
      :scheme :http
-     :request-method (keyword (lower-case (.. req getMethod getName)))
-     :content-type (HttpHeaders/getHeader req HttpHeaders$Names/CONTENT_TYPE)
+     :request-method (keyword (lower-case
+                               (.. ^HttpRequest req getMethod getName)))
+     :content-type (HttpHeaders/getHeader
+                    req HttpHeaders$Names/CONTENT_TYPE)
      :content-length (HttpHeaders/getContentLength req)
-     :character-encoding (HttpHeaders/getHeader req HttpHeaders$Names/CONTENT_ENCODING)
-     :headers (as-map (.getHeaders req))
-     :body (let [cbis (ChannelBufferInputStream. (.getContent req))]
-             (if (> (.available cbis) 0) cbis))}))
+     :character-encoding (HttpHeaders/getHeader
+                          req HttpHeaders$Names/CONTENT_ENCODING)
+     :headers (as-map (.getHeaders ^HttpRequest req))
+     :body (let [cbis (ChannelBufferInputStream.
+                       (.getContent ^HttpRequest req))]
+             (if (> (.available ^ChannelBufferInputStream cbis) 0)
+               cbis))}))
 
 (defn- write-content [resp buffer]
-  (.setHeader resp HttpHeaders$Names/CONTENT_LENGTH
-              (.readableBytes buffer))
-  (.setContent resp buffer))
+  (.setHeader ^HttpResponse resp
+              ^String HttpHeaders$Names/CONTENT_LENGTH
+              ^Integer (.readableBytes ^ChannelBuffer buffer))
+  (.setContent ^HttpResponse resp buffer))
 
 (defn ring-response [resp]
   (let [{status :status headers :headers body :body} resp
@@ -78,30 +88,32 @@
                          (HttpResponseStatus/valueOf status))]
     ;; write headers
     (doseq [header (or headers {})]
-      (.setHeader netty-response (key header) (val header)))
+      (.setHeader ^HttpResponse  netty-response
+                  ^String (key header)
+                  ^Integer (val header)))
 
     ;; write body
     (cond
      (nil? body)
-     (.setHeader resp HttpHeaders$Names/CONTENT_LENGTH 0)
+     (.setHeader ^HttpResponse resp HttpHeaders$Names/CONTENT_LENGTH 0)
      
      (instance? String body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
-           bytes (.getBytes body "UTF-8")]
-       (.writeBytes buffer bytes)
+           bytes (.getBytes ^String body "UTF-8")]
+       (.writeBytes ^ChannelBuffer buffer ^bytes bytes)
        (write-content netty-response buffer))
      
      (sequential? body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
-           line-bytes (map #(.getBytes % "UTF-8") body)]
+           line-bytes (map #(.getBytes ^String % "UTF-8") body)]
        (doseq [line line-bytes]
-         (.writeBytes buffer line))
+         (.writeBytes ^ChannelBuffer buffer ^bytes line))
        (write-content netty-response buffer))
      
      (instance? File body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            buffer-out (ChannelBufferOutputStream. buffer)
-           file-size (.length body)
+           file-size (.length ^File body)
            file-in (input-stream body)]
        (copy file-in buffer-out)
        (write-content netty-response buffer))
@@ -109,7 +121,7 @@
      (instance? InputStream body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
            buffer-out (ChannelBufferOutputStream. buffer)
-           clength (.available body)]
+           clength (.available ^InputStream body)]
        (copy body buffer-out)
        (write-content netty-response buffer)))
     
@@ -117,12 +129,12 @@
 
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
-   (on-message [ctx e]
+   (on-message [^ChannelHandlerContext ctx ^MessageEvent e]
                (let [channel (.getChannel ctx)
                      req (ring-request channel e)
                      resp (ring-fn req)]
-                  (.write channel (ring-response resp))))
-   (on-error [ctx e]
+                  (.write ^Channel channel (ring-response resp))))
+   (on-error [^ChannelHandlerContext ctx ^ExceptionEvent e]
              (let [resp (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
                           HttpResponseStatus/INTERNAL_SERVER_ERROR)

@@ -61,7 +61,7 @@
         pipeline (create-pipeline handler encoder decoder)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
-    (.. (.connect bootstrap (InetSocketAddress. host port))
+    (.. (.connect bootstrap (InetSocketAddress. ^String host ^Integer port))
         awaitUninterruptibly
         getChannel)))
 
