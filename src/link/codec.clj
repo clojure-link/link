@@ -124,11 +124,6 @@
                  value ((:decoder codec) buffer)]
              (get mapping value))))
 
-(defmacro dbg [x]
-  `(let [x# ~x]
-    (println "dbg:" '~x "=" x#)
-    x#))
-
 (defcodec header
   (encoder [options data buffer]
            (let [[enumer children] options
@@ -140,8 +135,8 @@
              buffer))
   (decoder [options buffer]
            (let [[enumer children] options
-                 head (dbg ((:decoder enumer) buffer))
-                 body ((dbg (:decoder (dbg (get children head)))) buffer)]
+                 head ((:decoder enumer) buffer)
+                 body ((:decoder (get children head)) buffer)]
              (if-not (nil? body)
                [head body]))))
 
@@ -177,16 +172,21 @@
             (Channels/write ctx (.getFuture e) buffer (.getRemoteAddress e))))))))
 
 (defn netty-decoder [codec]
-  ;; TODO need cumulation support
-  (reify ChannelUpstreamHandler
-    (handleUpstream [this ctx e]
-      (if-not (instance? MessageEvent e)
-        (.sendUpstream ctx e)
-        (let [buffer (.getMessage e)
-              data (decode codec buffer)]
-          (.markReaderIndex buffer)
-          (if-not (nil? data)
-            (Channels/fireMessageReceived ctx data (.getRemoteAddress e))
-            (do
-              (.resetReaderIndex buffer))))))))
+  (let [cumulation (ChannelBuffers/dynamicBuffer)]
+    (reify ChannelUpstreamHandler
+     (handleUpstream [this ctx e]
+       (if-not (instance? MessageEvent e)
+         (.sendUpstream ctx e)
+         (let [in (.getMessage e)]
+           (.writeBytes cumulation in)
+           (loop []
+             (when (.readable cumulation)
+               (.markReaderIndex cumulation)
+               (if-let [data (decode codec cumulation)]
+                 (do
+                   (Channels/fireMessageReceived ctx data (.getRemoteAddress e))
+                   (recur))
+                 (do
+                   (.resetReaderIndex cumulation)))))
+           (.discardReadBytes cumulation)))))))
 
