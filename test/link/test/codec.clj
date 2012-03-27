@@ -33,6 +33,14 @@
                                     (int64)
                                     (string :prefix (int32) :encoding :ascii))))
 
+(deftest test-nil-results
+  (let [buffer (ChannelBuffers/dynamicBuffer)
+        codec (string :prefix (int32) :encoding :utf-8)]
+    (.writeInt buffer 50)
+    (.writeBytes buffer (.getBytes "Hello World" "UTF-8")) 
+
+
+    (is (nil? (decode codec buffer)))))
 
 
 

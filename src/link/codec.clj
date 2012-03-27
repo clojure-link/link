@@ -24,24 +24,25 @@
 (defmacro decoder [args & body]
   `(fn ~args ~@body))
 
-(defmacro primitive-codec [sname writer-fn reader-fn]
+(defmacro primitive-codec [sname size writer-fn reader-fn]
   `(defcodec ~sname
      (encoder [_# data# ^ChannelBuffer buffer#]
               (. buffer# ~writer-fn data#)
               buffer#)
      (decoder [_# ^ChannelBuffer buffer#]
-              (. buffer# ~reader-fn))))
+              (if (>= (.readableBytes buffer#) ~size)
+                (. buffer# ~reader-fn)))))
 
-(primitive-codec byte writeByte readByte)
-(primitive-codec int16 writeShort readShort)
-(primitive-codec uint16 writeShort readUnsignedShort)
-(primitive-codec int24 writeMedium readMedium)
-(primitive-codec uint24 writeMedium readUnsignedMedium)
-(primitive-codec int32 writeInt readInt)
-(primitive-codec uint32 writeInt readUnsignedInt)
-(primitive-codec int64 writeLong readLong)
-(primitive-codec float writeFloat readFloat)
-(primitive-codec double writeDouble readDouble)
+(primitive-codec byte 1 writeByte readByte)
+(primitive-codec int16 2 writeShort readShort)
+(primitive-codec uint16 2 writeShort readUnsignedShort)
+(primitive-codec int24 3 writeMedium readMedium)
+(primitive-codec uint24 3 writeMedium readUnsignedMedium)
+(primitive-codec int32 4 writeInt readInt)
+(primitive-codec uint32 4 writeInt readUnsignedInt)
+(primitive-codec int64 8 writeLong readLong)
+(primitive-codec float 4 writeFloat readFloat)
+(primitive-codec double 8 writeDouble readDouble)
 
 (defn- find-delimiter [^ChannelBuffer src ^bytes delim]
   (loop [sindex (.readerIndex src) dindex 0]
@@ -78,7 +79,7 @@
               ;; length prefix string
               (nil? delimiter)
               (do
-                (let [byte-length ((:decoder prefix) buffer)]
+                (if-let [byte-length ((:decoder prefix) buffer)]
                   (if-not (> byte-length (.readableBytes buffer))
                     (let [bytes (byte-array byte-length)]
                       (.readBytes buffer ^bytes bytes)
@@ -102,8 +103,7 @@
              (.writeBytes buffer ^ByteBuffer data)
              buffer))
   (decoder [options ^ChannelBuffer buffer]
-           (let [{prefix :prefix} options
-                 byte-length ((:decoder prefix) buffer)]
+           (if-let [byte-length ((:decoder (:prefix options)) buffer)]
              (if-not (> byte-length (.readableBytes buffer))
                (let [local-buffer (ByteBuffer/allocate byte-length)]
                  (.readBytes buffer ^ByteBuffer local-buffer)
@@ -138,7 +138,8 @@
   (decoder [options ^ChannelBuffer buffer]
            (let [[enumer children] options
                  head ((:decoder enumer) buffer)
-                 body ((:decoder (get children head)) buffer)]
+                 body (and head ;; body is nil if head is nil
+                       ((:decoder (get children head)) buffer))]
              (if-not (nil? body)
                [head body]))))
 
