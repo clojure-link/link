@@ -103,8 +103,10 @@
              (.writeBytes buffer ^ByteBuffer data)
              buffer))
   (decoder [options ^ChannelBuffer buffer]
-           (if-let [byte-length ((:decoder (:prefix options)) buffer)]
-             (if-not (> byte-length (.readableBytes buffer))
+           (let [{prefix :prefix} options
+                 byte-length ((:decoder prefix) buffer)]
+             (if-not (or (nil? byte-length)
+                         (> byte-length (.readableBytes buffer)))
                (let [local-buffer (ByteBuffer/allocate byte-length)]
                  (.readBytes buffer ^ByteBuffer local-buffer)
                  (.rewind local-buffer)
