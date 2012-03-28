@@ -12,7 +12,7 @@
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory]))
 
-(defn- create-pipeline [handler encoder decoder]
+(defn- create-pipeline [handlers encoder decoder]
   (reify ChannelPipelineFactory
     (getPipeline [this]
       (let [pipeline (Channels/pipeline)]
@@ -20,7 +20,10 @@
           (.addLast pipeline "decoder" (netty-decoder decoder)))
         (when-not (nil? encoder)
           (.addLast pipeline "encoder" (netty-encoder encoder)))
-        (.addLast pipeline "handler" handler)
+        (if (sequential? handlers)
+          (doseq [h handlers i (range (count handlers))]
+            (.addLast pipeline (str "handler-" i) h))
+          (.addLast pipeline "handler" handler))
         pipeline))))
 
 (defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool tcp-options]
