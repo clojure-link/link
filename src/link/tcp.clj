@@ -1,4 +1,5 @@
 (ns link.tcp
+  (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:import [java.net InetSocketAddress])
   (:import [java.util.concurrent Executors])
@@ -7,7 +8,9 @@
             ServerBootstrap])
   (:import [org.jboss.netty.channel
             Channels
-            ChannelPipelineFactory])
+            ChannelPipelineFactory
+            Channel
+            ChannelHandlerContext])
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory]))
@@ -50,23 +53,33 @@
                       tcp-options)))
 
 (defn tcp-client [host port handler
-                  & {:keys [encoder decoder codec boss-pool worker-pool tcp-options]
+                  & {:keys [encoder decoder codec boss-pool worker-pool
+                            auto-reconnect tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
                           boss-pool (Executors/newCachedThreadPool)
                           worker-pool (Executors/newCachedThreadPool)
+                          auto-reconnect false
                           tcp-options {}}}]
   (let [encoder (or encoder codec)
         decoder (or decoder codec)
         bootstrap (ClientBootstrap.
                    (NioClientSocketChannelFactory. boss-pool worker-pool))
-        pipeline (create-pipeline handler encoder decoder)]
+        addr (InetSocketAddress. ^String host ^Integer port)
+        pipeline (create-pipeline (if auto-reconnect
+                                    [handler (reconnector addr)] handler)
+                                  encoder decoder)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
-    (.. (.connect bootstrap (InetSocketAddress. ^String host ^Integer port))
+    (.. (.connect bootstrap addr)
         awaitUninterruptibly
         getChannel)))
 
-
+(defn reconnector [addr]
+  (create-handler
+   (on-disconnected [^ChannelHandlerContext ctx e]
+                    (let [ch (.getChannel ctx)
+                          chf (.connect ch addr)]
+                      (.awaitUninterruptibly chf)))))
 
