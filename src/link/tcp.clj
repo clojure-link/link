@@ -26,8 +26,15 @@
         (if (sequential? handlers)
           (doseq [h handlers i (range (count handlers))]
             (.addLast pipeline (str "handler-" i) h))
-          (.addLast pipeline "handler" handler))
+          (.addLast pipeline "handler" handlers))
         pipeline))))
+
+(defn reconnector [addr]
+  (create-handler
+   (on-disconnected [^ChannelHandlerContext ctx e]
+                    (let [ch (.getChannel ctx)
+                          chf (.connect ch addr)]
+                      (.awaitUninterruptibly chf)))))
 
 (defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool tcp-options]
   (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
@@ -76,10 +83,5 @@
         awaitUninterruptibly
         getChannel)))
 
-(defn reconnector [addr]
-  (create-handler
-   (on-disconnected [^ChannelHandlerContext ctx e]
-                    (let [ch (.getChannel ctx)
-                          chf (.connect ch addr)]
-                      (.awaitUninterruptibly chf)))))
+
 
