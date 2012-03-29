@@ -24,14 +24,15 @@
         (when-not (nil? encoder)
           (.addLast pipeline "encoder" (netty-encoder encoder)))
         (if (sequential? handlers)
-          (doseq [h handlers i (range (count handlers))]
-            (.addLast pipeline (str "handler-" i) h))
+          (doseq [i (range (count handlers))]
+            (.addLast pipeline (str "handler-" i) (nth handlers i)))
           (.addLast pipeline "handler" handlers))
         pipeline))))
 
 (defn reconnector [addr]
   (create-handler
    (on-disconnected [^ChannelHandlerContext ctx e]
+                    (println "disconnected")
                     (let [ch (.getChannel ctx)
                           chf (.connect ch addr)]
                       (.awaitUninterruptibly chf)))))
