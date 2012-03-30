@@ -1,5 +1,9 @@
 (ns link.core
-  (:import [org.jboss.netty.channel SimpleChannelUpstreamHandler]))
+  (:refer-clojure :exclude [send])
+  (:import [java.net InetSocketAddress])
+  (:import [org.jboss.netty.channel
+            Channel
+            SimpleChannelUpstreamHandler]))
 
 (defmacro ^{:private true} make-handler-macro [evt]
   (let [handler-name (str "on-" evt)
@@ -20,20 +24,39 @@
   `(let [handlers# (merge ~@body)]
      (proxy [SimpleChannelUpstreamHandler] []
        (channelClosed [ctx# e#]
-         (when-let [handler# (:on-close handlers#)]
-           (handler# ctx# e#)))
+         (if-let [handler# (:on-close handlers#)]
+           (handler# ctx# e#)
+           (.sendUpstream ctx# e#)))
        (channelConnected [ctx# e#]
-         (when-let [handler# (:on-connected handlers#)]
-           (handler# ctx# e#)))
+         (if-let [handler# (:on-connected handlers#)]
+           (handler# ctx# e#)
+           (.sendUpstream ctx# e#)))
        (channelDisconnected [ctx# e#]
-         (when-let [handler# (:on-disconnected handlers#)]
-           (handler# ctx# e#)))
+         (if-let [handler# (:on-disconnected handlers#)]
+           (handler# ctx# e#)
+           (.sendUpstream ctx# e#)))
        (channelOpen [ctx# e#]
-         (when-let [handler# (:on-open handlers#)]
-           (handler# ctx# e#)))
+         (if-let [handler# (:on-open handlers#)]
+           (handler# ctx# e#)
+           (.sendUpstream ctx# e#)))
        (exceptionCaught [ctx# e#]
-         (when-let [handler# (:on-error handlers#)]
-           (handler# ctx# e#)))
+         (if-let [handler# (:on-error handlers#)]
+           (handler# ctx# e#)
+           (.sendUpstream ctx# e#)))
        (messageReceived [ctx# e#]
-         (when-let [handler# (:on-message handlers#)]
-           (handler# ctx# e#))))))
+         (if-let [handler# (:on-message handlers#)]
+           (handler# ctx# e#)
+           (.sendUpstream ctx# e#))))))
+
+(defprotocol MessageChannel
+  (send [this msg])
+  (close [this]))
+
+(deftype WrappedSocketChannel [ch-ref]
+  MessageChannel
+  (send [this msg]
+    (.write ^Channel @ch-ref msg))
+  (close [this]
+    (.close ^Channel @ch-ref)))
+
+

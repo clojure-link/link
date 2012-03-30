@@ -1,4 +1,5 @@
 (ns link.tcp
+  (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:import [java.net InetSocketAddress])
@@ -17,7 +18,7 @@
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory])
-  (:import [link.channel WrappedSocketChannel]))
+  (:import [link.core WrappedSocketChannel]))
 
 (defn- create-pipeline [handlers encoder decoder]
   (reify ChannelPipelineFactory
@@ -33,15 +34,18 @@
           (.addLast pipeline "handler" handlers))
         pipeline))))
 
-(defn reconnector [addr]
+(defn reconnector [^ClientBootstrap bootstrap
+                   ^InetSocketAddress addr
+                   chref]
   (create-handler
-   (on-error [^ChannelHandlerContext ctx ^ExceptionEvent e]
-             (let [exp (.getCause e)]
-               (when (instance? ClosedChannelException exp)
-                 (println "channel closed")
-                 ;;TODO
-                 
-                 )))))
+   (on-error ([^ChannelHandlerContext ctx ^ExceptionEvent e]
+                (if (instance? ClosedChannelException (.getCause e))
+                  (let [chfuture (.connect bootstrap addr)
+                        ch (.. chfuture
+                               awaitUninterruptibly
+                               getChannel)]
+                    (reset! chref ch)))
+                (.sendUpstream ctx e)))))
 
 (defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool tcp-options]
   (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
@@ -82,9 +86,11 @@
                    (NioClientSocketChannelFactory. boss-pool worker-pool))
         addr (InetSocketAddress. ^String host ^Integer port)
         chref (atom nil)
-        pipeline (create-pipeline (if auto-reconnect
-                                    [handler (reconnector bs addr chref)] handler)
-                                  encoder decoder)]
+        pipeline (create-pipeline
+                  (if auto-reconnect
+                    [(reconnector bootstrap addr chref) handler]
+                    handler)
+                  encoder decoder)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
     (let [ch (.. (.connect bootstrap addr)

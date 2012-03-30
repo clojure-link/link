@@ -1,4 +1,5 @@
 (ns link.http
+  (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
