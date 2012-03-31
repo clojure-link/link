@@ -39,7 +39,7 @@
                    chref]
   (create-handler
    (on-error ([^ChannelHandlerContext ctx ^ExceptionEvent e]
-                (if (instance? ClosedChannelException (.getCause e))
+                (when (instance? ClosedChannelException (.getCause e))
                   (let [chfuture (.connect bootstrap addr)
                         ch (.. chfuture
                                awaitUninterruptibly
