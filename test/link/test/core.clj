@@ -1,4 +1,5 @@
 (ns link.test.core
+  (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [clojure.test]))
 

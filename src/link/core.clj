@@ -3,6 +3,7 @@
   (:import [java.net InetSocketAddress])
   (:import [org.jboss.netty.channel
             Channel
+            ChannelHandlerContext
             SimpleChannelUpstreamHandler]))
 
 (defmacro ^{:private true} make-handler-macro [evt]
@@ -26,27 +27,27 @@
        (channelClosed [ctx# e#]
          (if-let [handler# (:on-close handlers#)]
            (handler# ctx# e#)
-           (.sendUpstream ctx# e#)))
+           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
        (channelConnected [ctx# e#]
          (if-let [handler# (:on-connected handlers#)]
            (handler# ctx# e#)
-           (.sendUpstream ctx# e#)))
+           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
        (channelDisconnected [ctx# e#]
          (if-let [handler# (:on-disconnected handlers#)]
            (handler# ctx# e#)
-           (.sendUpstream ctx# e#)))
+           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
        (channelOpen [ctx# e#]
          (if-let [handler# (:on-open handlers#)]
            (handler# ctx# e#)
-           (.sendUpstream ctx# e#)))
+           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
        (exceptionCaught [ctx# e#]
          (if-let [handler# (:on-error handlers#)]
            (handler# ctx# e#)
-           (.sendUpstream ctx# e#)))
+           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
        (messageReceived [ctx# e#]
          (if-let [handler# (:on-message handlers#)]
            (handler# ctx# e#)
-           (.sendUpstream ctx# e#))))))
+           (.sendUpstream ^ChannelHandlerContext ctx# e#))))))
 
 (defprotocol MessageChannel
   (send [this msg])
