@@ -1,10 +1,32 @@
 (ns link.core
   (:refer-clojure :exclude [send])
   (:import [java.net InetSocketAddress])
+  (:import [java.nio.channels ClosedChannelException])
   (:import [org.jboss.netty.channel
             Channel
             ChannelHandlerContext
+            MessageEvent
+            ExceptionEvent
+            WriteCompletionEvent
             SimpleChannelUpstreamHandler]))
+
+(defprotocol MessageChannel
+  (send [this msg])
+  (close [this]))
+
+(deftype WrappedSocketChannel [ch-ref]
+  MessageChannel
+  (send [this msg]
+    (.write ^Channel @ch-ref msg))
+  (close [this]
+    (.close ^Channel @ch-ref)))
+
+(deftype SimpleWrappedSocketChannel [^Channel ch]
+  MessageChannel
+  (send [this msg]
+    (.write ch msg))
+  (close [this]
+    (.close ch)))
 
 (defmacro ^{:private true} make-handler-macro [evt]
   (let [handler-name (str "on-" evt)
@@ -20,44 +42,51 @@
 (make-handler-macro error)
 (make-handler-macro connected)
 (make-handler-macro disconnected)
+(make-handler-macro write-complete)
 
 (defmacro create-handler [& body]
   `(let [handlers# (merge ~@body)]
      (proxy [SimpleChannelUpstreamHandler] []
-       (channelClosed [ctx# e#]
+       (channelClosed [^ChannelHandlerContext ctx# e#]
          (if-let [handler# (:on-close handlers#)]
-           (handler# ctx# e#)
-           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
-       (channelConnected [ctx# e#]
+           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
+           (.sendUpstream ctx# e#)))
+       (channelConnected [^ChannelHandlerContext ctx# e#]
          (if-let [handler# (:on-connected handlers#)]
-           (handler# ctx# e#)
-           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
-       (channelDisconnected [ctx# e#]
+           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
+           (.sendUpstream ctx# e#)))
+       (channelDisconnected [^ChannelHandlerContext ctx# e#]
          (if-let [handler# (:on-disconnected handlers#)]
-           (handler# ctx# e#)
-           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
-       (channelOpen [ctx# e#]
+           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
+           (.sendUpstream ctx# e#)))
+       (channelOpen [^ChannelHandlerContext ctx# e#]
          (if-let [handler# (:on-open handlers#)]
-           (handler# ctx# e#)
-           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
-       (exceptionCaught [ctx# e#]
-         (if-let [handler# (:on-error handlers#)]
-           (handler# ctx# e#)
-           (.sendUpstream ^ChannelHandlerContext ctx# e#)))
-       (messageReceived [ctx# e#]
-         (if-let [handler# (:on-message handlers#)]
-           (handler# ctx# e#)
-           (.sendUpstream ^ChannelHandlerContext ctx# e#))))))
+           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
+           (.sendUpstream ctx# e#)))
+       
+       (exceptionCaught [^ChannelHandlerContext ctx#
+                         ^ExceptionEvent e#]
+         (when-let [handler# (:on-error handlers#)]
+           (let [ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))
+                 exp# (.getCause e#)]
+             (handler# ch# exp#)))
+         (.sendUpstream  ctx# e#))
+       
+       (messageReceived [^ChannelHandlerContext ctx#
+                         ^MessageEvent e#]
+         (when-let [handler# (:on-message handlers#)]
+           (let [message# (.getMessage e#)
+                 addr# (.getRemoteAddress e#)
+                 ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))]
+             (handler# ch# message# addr#)))
+         (.sendUpstream ctx# e#))
 
-(defprotocol MessageChannel
-  (send [this msg])
-  (close [this]))
-
-(deftype WrappedSocketChannel [ch-ref]
-  MessageChannel
-  (send [this msg]
-    (.write ^Channel @ch-ref msg))
-  (close [this]
-    (.close ^Channel @ch-ref)))
+       (writeComplete [^ChannelHandlerContext ctx#
+                       ^WriteCompletionEvent e#]
+         (when-let [handler# (:on-write-complete handlers#)]
+           (let [amount# (.getWrittenAmount e#)
+                 ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))]
+             (handler# ch# amount#)))
+         (.sendUpstream ctx# e#)))))
 
 

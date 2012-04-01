@@ -13,7 +13,6 @@
             ChannelPipelineFactory
             Channel
             ChannelHandlerContext
-            ExceptionEvent
             ])
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
@@ -38,14 +37,13 @@
                    ^InetSocketAddress addr
                    chref]
   (create-handler
-   (on-error ([^ChannelHandlerContext ctx ^ExceptionEvent e]
-                (when (instance? ClosedChannelException (.getCause e))
+   (on-error ([_ exp]
+                (when (instance? ClosedChannelException exp)
                   (let [chfuture (.connect bootstrap addr)
                         ch (.. chfuture
                                awaitUninterruptibly
                                getChannel)]
-                    (reset! chref ch)))
-                (.sendUpstream ctx e)))))
+                    (reset! chref ch)))))))
 
 (defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool tcp-options]
   (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
