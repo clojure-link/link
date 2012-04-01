@@ -37,7 +37,7 @@
                    ^InetSocketAddress addr
                    chref]
   (create-handler
-   (on-error ([_ exp]
+   (on-error ([exp]
                 (when (instance? ClosedChannelException exp)
                   (let [chfuture (.connect bootstrap addr)
                         ch (.. chfuture
