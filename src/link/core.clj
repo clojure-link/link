@@ -67,9 +67,8 @@
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^ExceptionEvent e#]
          (when-let [handler# (:on-error handlers#)]
-           (let [ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))
-                 exp# (.getCause e#)]
-             (handler# ch# exp#)))
+           (let [exp# (.getCause e#)]
+             (handler# exp#)))
          (.sendUpstream  ctx# e#))
        
        (messageReceived [^ChannelHandlerContext ctx#

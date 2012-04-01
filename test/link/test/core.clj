@@ -39,7 +39,7 @@
                       (on-open [ctx] true)
                       (on-close [ctx] true)
                       (on-message [ctx msg addr] true)
-                      (on-error [ctx e] true)
+                      (on-error [e] true)
                       (on-connected [ctx] true)
                       (on-disconnected [ctx] true))
         ]
