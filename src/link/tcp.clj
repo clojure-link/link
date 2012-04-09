@@ -17,20 +17,17 @@
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory])
+  (:import [org.jboss.netty.handler.execution
+            ExecutionHandler
+            OrderedMemoryAwareThreadPoolExecutor])
   (:import [link.core WrappedSocketChannel]))
 
-(defn- create-pipeline [handlers encoder decoder]
+(defn- create-pipeline [& handlers]
   (reify ChannelPipelineFactory
     (getPipeline [this]
       (let [pipeline (Channels/pipeline)]
-        (when-not (nil? decoder)
-          (.addLast pipeline "decoder" (netty-decoder decoder)))
-        (when-not (nil? encoder)
-          (.addLast pipeline "encoder" (netty-encoder encoder)))
-        (if (sequential? handlers)
-          (doseq [i (range (count handlers))]
-            (.addLast pipeline (str "handler-" i) (nth handlers i)))
-          (.addLast pipeline "handler" handlers))
+        (doseq [i (range (count handlers))]
+          (.addLast pipeline (str "handler-" i) (nth handlers i)))
         pipeline))))
 
 (defn reconnector [^ClientBootstrap bootstrap
@@ -45,50 +42,53 @@
                                getChannel)]
                     (reset! chref ch)))))))
 
-(defn- start-tcp-server [port handler encoder decoder boss-pool worker-pool tcp-options]
-  (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
+(defn- start-tcp-server [port handler encoder decoder threaded? tcp-options]
+  (let [factory (NioServerSocketChannelFactory.
+                 (Executors/newCachedThreadPool)
+                 (Executors/newCachedThreadPool))
         bootstrap (ServerBootstrap. factory)
-        pipeline (create-pipeline handler encoder decoder)]
+        handlers [handler encoder decoder]
+        handlers (if threaded?
+                   (conj handlers
+                         (ExecutionHandler.
+                          (OrderedMemoryAwareThreadPoolExecutor. 10 0 0))))
+        pipeline (apply create-handler handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
     (.bind bootstrap (InetSocketAddress. port))))
 
 (defn tcp-server [port handler
-                  & {:keys [encoder decoder codec boss-pool worker-pool tcp-options]
+                  & {:keys [encoder decoder codec threaded? tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
-                          boss-pool (Executors/newCachedThreadPool)
-                          worker-pool (Executors/newCachedThreadPool)
+                          threaded? false
                           tcp-options {}}}]
-  (let [encoder (or encoder codec)
-        decoder (or decoder codec)]
+  (let [encoder (netty-encoder (or encoder codec))
+        decoder (netty-decoder (or decoder codec))]
     (start-tcp-server port handler
                       encoder decoder
-                      boss-pool worker-pool
+                      threaded?
                       tcp-options)))
 
 (defn tcp-client [host port handler
-                  & {:keys [encoder decoder codec boss-pool worker-pool
-                            auto-reconnect tcp-options]
+                  & {:keys [encoder decoder codec auto-reconnect tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
-                          boss-pool (Executors/newCachedThreadPool)
-                          worker-pool (Executors/newCachedThreadPool)
                           auto-reconnect false
                           tcp-options {}}}]
-  (let [encoder (or encoder codec)
-        decoder (or decoder codec)
+  (let [encoder (netty-encoder (or encoder codec))
+        decoder (netty-decoder (or decoder codec))
         bootstrap (ClientBootstrap.
                    (NioClientSocketChannelFactory. boss-pool worker-pool))
         addr (InetSocketAddress. ^String host ^Integer port)
         chref (atom nil)
-        pipeline (create-pipeline
-                  (if auto-reconnect
-                    [(reconnector bootstrap addr chref) handler]
-                    handler)
-                  encoder decoder)]
+        handlers (if auto-reconnect
+                   [(reconnector bootstrap addr chref)
+                    handler encoder decoder]
+                   [handler encoder decoder])
+        pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
     (let [ch (.. (.connect bootstrap addr)
