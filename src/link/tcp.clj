@@ -47,12 +47,13 @@
                  (Executors/newCachedThreadPool)
                  (Executors/newCachedThreadPool))
         bootstrap (ServerBootstrap. factory)
-        handlers [handler encoder decoder]
-        handlers (if threaded?
-                   (conj handlers
-                         (ExecutionHandler.
-                          (OrderedMemoryAwareThreadPoolExecutor. 10 0 0))))
-        pipeline (apply create-handler handlers)]
+        handlers (if-not threaded?
+                   [encoder decoder handler]
+                   [encoder decoder 
+                    (ExecutionHandler.
+                     (OrderedMemoryAwareThreadPoolExecutor. 20 0 0))
+                    handler])
+        pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
     (.bind bootstrap (InetSocketAddress. port))))
@@ -81,13 +82,15 @@
   (let [encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))
         bootstrap (ClientBootstrap.
-                   (NioClientSocketChannelFactory. boss-pool worker-pool))
+                   (NioClientSocketChannelFactory.
+                    (Executors/newCachedThreadPool)
+                    (Executors/newCachedThreadPool)))
         addr (InetSocketAddress. ^String host ^Integer port)
         chref (atom nil)
         handlers (if auto-reconnect
-                   [(reconnector bootstrap addr chref)
-                    handler encoder decoder]
-                   [handler encoder decoder])
+                   [encoder decoder
+                    (reconnector bootstrap addr chref) handler]
+                   [encoder decoder handler])
         pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)

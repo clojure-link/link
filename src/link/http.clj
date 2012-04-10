@@ -29,13 +29,20 @@
             HttpHeaders$Names
             HttpServerCodec
             HttpResponseStatus
-            DefaultHttpResponse]))
+            DefaultHttpResponse])
+  (:import [org.jboss.netty.handler.execution
+            ExecutionHandler
+            OrderedMemoryAwareThreadPoolExecutor]))
 
-(defn create-http-pipeline [handler]
+(defn create-http-pipeline [handler threaded?]
   (reify ChannelPipelineFactory
     (getPipeline [this]
       (let [pipeline (Channels/pipeline)]
         (.addLast pipeline "codec" (HttpServerCodec.))
+        (if threaded?
+          (.addLast pipeline "executor"
+                    (ExecutionHandler.
+                     (OrderedMemoryAwareThreadPoolExecutor. 20 0 0))))
         (.addLast pipeline "handler" handler)
         pipeline))))
 
@@ -152,14 +159,15 @@
                (.write (.getChannel ctx) resp)))))
 
 (defn http-server [port ring-fn
-                   & {:keys [boss-pool worker-pool debug]
-                      :or {boss-pool (Executors/newCachedThreadPool)
-                           worker-pool (Executors/newCachedThreadPool)
+                   & {:keys [threaded? debug]
+                      :or {threaded? false
                            debug false}}]
-  (let [factory (NioServerSocketChannelFactory. boss-pool worker-pool)
+  (let [factory (NioServerSocketChannelFactory.
+                 (Executors/newCachedThreadPool)
+                 (Executors/newCachedThreadPool))
         bootstrap (ServerBootstrap. factory)
         pipeline (create-http-pipeline
-                  (create-http-handler-from-ring ring-fn debug))]
+                  (create-http-handler-from-ring ring-fn debug) threaded?)]
     (.setPipelineFactory bootstrap pipeline)
     (.bind bootstrap (InetSocketAddress. port))))
 
