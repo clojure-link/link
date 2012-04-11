@@ -32,7 +32,7 @@
             DefaultHttpResponse])
   (:import [org.jboss.netty.handler.execution
             ExecutionHandler
-            OrderedMemoryAwareThreadPoolExecutor]))
+            MemoryAwareThreadPoolExecutor]))
 
 (defn create-http-pipeline [handler threaded?]
   (reify ChannelPipelineFactory
@@ -42,7 +42,7 @@
         (if threaded?
           (.addLast pipeline "executor"
                     (ExecutionHandler.
-                     (OrderedMemoryAwareThreadPoolExecutor. 20 0 0))))
+                     (MemoryAwareThreadPoolExecutor. 20 0 0))))
         (.addLast pipeline "handler" handler)
         pipeline))))
 

@@ -19,7 +19,7 @@
             NioClientSocketChannelFactory])
   (:import [org.jboss.netty.handler.execution
             ExecutionHandler
-            OrderedMemoryAwareThreadPoolExecutor])
+            MemoryAwareThreadPoolExecutor])
   (:import [link.core WrappedSocketChannel]))
 
 (defn- create-pipeline [& handlers]
@@ -51,7 +51,7 @@
                    [encoder decoder handler]
                    [encoder decoder 
                     (ExecutionHandler.
-                     (OrderedMemoryAwareThreadPoolExecutor. 20 0 0))
+                     (MemoryAwareThreadPoolExecutor. 20 0 0))
                     handler])
         pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
