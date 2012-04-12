@@ -8,7 +8,11 @@
             MessageEvent
             ExceptionEvent
             WriteCompletionEvent
-            SimpleChannelUpstreamHandler]))
+            SimpleChannelUpstreamHandler])
+  (:import [org.jboss.netty.handler.execution
+            ExecutionHandler
+            MemoryAwareThreadPoolExecutor
+            OrderedMemoryAwareThreadPoolExecutor]))
 
 (defprotocol MessageChannel
   (send [this msg])
@@ -87,5 +91,17 @@
                  ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))]
              (handler# ch# amount#)))
          (.sendUpstream ctx# e#)))))
+
+(defn threaded-handler [ordered]
+  (let [core-size 20
+        max-channel-memory 0 ;;unlimited
+        max-total-memory 0 ;;unlimited
+        ]
+   (ExecutionHandler.
+    (if ordered
+      (OrderedMemoryAwareThreadPoolExecutor.
+       core-size max-channel-memory max-total-memory)
+      (MemoryAwareThreadPoolExecutor.
+       core-size max-channel-memory max-total-memory)))))
 
 

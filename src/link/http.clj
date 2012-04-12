@@ -29,10 +29,7 @@
             HttpHeaders$Names
             HttpServerCodec
             HttpResponseStatus
-            DefaultHttpResponse])
-  (:import [org.jboss.netty.handler.execution
-            ExecutionHandler
-            MemoryAwareThreadPoolExecutor]))
+            DefaultHttpResponse]))
 
 (defn create-http-pipeline [handler threaded?]
   (reify ChannelPipelineFactory
@@ -40,9 +37,7 @@
       (let [pipeline (Channels/pipeline)]
         (.addLast pipeline "codec" (HttpServerCodec.))
         (if threaded?
-          (.addLast pipeline "executor"
-                    (ExecutionHandler.
-                     (MemoryAwareThreadPoolExecutor. 20 0 0))))
+          (.addLast pipeline "executor" (threaded-handler true)))
         (.addLast pipeline "handler" handler)
         pipeline))))
 

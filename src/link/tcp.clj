@@ -17,9 +17,6 @@
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory])
-  (:import [org.jboss.netty.handler.execution
-            ExecutionHandler
-            MemoryAwareThreadPoolExecutor])
   (:import [link.core WrappedSocketChannel]))
 
 (defn- create-pipeline [& handlers]
@@ -29,6 +26,7 @@
         (doseq [i (range (count handlers))]
           (.addLast pipeline (str "handler-" i) (nth handlers i)))
         pipeline))))
+
 
 (defn reconnector [^ClientBootstrap bootstrap
                    ^InetSocketAddress addr
@@ -42,16 +40,15 @@
                                getChannel)]
                     (reset! chref ch)))))))
 
-(defn- start-tcp-server [port handler encoder decoder threaded? tcp-options]
+(defn- start-tcp-server [port handler encoder decoder threaded?
+                         ordered tcp-options]
   (let [factory (NioServerSocketChannelFactory.
                  (Executors/newCachedThreadPool)
                  (Executors/newCachedThreadPool))
         bootstrap (ServerBootstrap. factory)
         handlers (if-not threaded?
                    [encoder decoder handler]
-                   [encoder decoder 
-                    (ExecutionHandler.
-                     (MemoryAwareThreadPoolExecutor. 20 0 0))
+                   [encoder decoder (threaded-handler ordered)
                     handler])
         pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
@@ -59,17 +56,20 @@
     (.bind bootstrap (InetSocketAddress. port))))
 
 (defn tcp-server [port handler
-                  & {:keys [encoder decoder codec threaded? tcp-options]
+                  & {:keys [encoder decoder codec
+                            threaded? ordered? tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
                           threaded? false
+                          ordered? true
                           tcp-options {}}}]
   (let [encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))]
     (start-tcp-server port handler
                       encoder decoder
                       threaded?
+                      ordered?
                       tcp-options)))
 
 (defn tcp-client [host port handler
