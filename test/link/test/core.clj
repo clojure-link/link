@@ -36,12 +36,12 @@
 
 (deftest test-handler
   (let [test-handler (create-handler
-                      (on-open [ctx] true)
-                      (on-close [ctx] true)
-                      (on-message [ctx msg addr] true)
-                      (on-error [e] true)
-                      (on-connected [ctx] true)
-                      (on-disconnected [ctx] true))
+                      (on-open [ch] true)
+                      (on-close [ch] true)
+                      (on-message [ch msg addr] true)
+                      (on-error [ch e] true)
+                      (on-connected [ch] true)
+                      (on-disconnected [ch] true))
         ]
     (is (nil? (.channelClosed test-handler ch-handle-ctx nil)))
     (is (nil? (.channelConnected test-handler ch-handle-ctx nil)))

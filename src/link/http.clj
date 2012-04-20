@@ -54,10 +54,8 @@
     (subs uri 0 (.indexOf uri "?"))
     uri))
 
-(defn ring-request [^Channel c ^MessageEvent e]
-  (let [server-addr (.getLocalAddress c)
-        addr (.getRemoteAddress e)
-        req (.getMessage e)
+(defn ring-request [ch req addr]
+  (let [server-addr (channel-addr ch)
         uri (.getUri ^HttpRequest req)]
     {:server-addr (.getHostName ^InetSocketAddress server-addr)
      :server-port (.getPort ^InetSocketAddress server-addr)
@@ -133,12 +131,11 @@
 
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
-   (on-message [^ChannelHandlerContext ctx ^MessageEvent e]
-               (let [channel (.getChannel ctx)
-                     req (ring-request channel e)
+   (on-message [ch msg addr]
+               (let [req (ring-request ch msg addr)
                      resp (ring-fn req)]
-                  (.write ^Channel channel (ring-response resp))))
-   (on-error [^ChannelHandlerContext ctx ^ExceptionEvent e]
+                  (send ch (ring-response resp))))
+   (on-error [ch exc]
              (let [resp (DefaultHttpResponse.
                           HttpVersion/HTTP_1_1
                           HttpResponseStatus/INTERNAL_SERVER_ERROR)
@@ -146,12 +143,11 @@
                    resp-out (ChannelBufferOutputStream. resp-buf)]
                
                (if debug
-                 (-> (.getCause e)
-                     (.printStackTrace (PrintStream. resp-out)))
+                 (.printStackTrace exc (PrintStream. resp-out))
                  (.writeBytes resp-buf (.getBytes "Internal Error" "UTF-8")))
 
                (write-content resp resp-buf)
-               (.write (.getChannel ctx) resp)))))
+               (send ch resp)))))
 
 (defn http-server [port ring-fn
                    & {:keys [threaded? debug]

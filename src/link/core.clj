@@ -16,12 +16,15 @@
 
 (defprotocol MessageChannel
   (send [this msg])
+  (channel-addr [this])
   (close [this]))
 
 (deftype WrappedSocketChannel [ch-ref]
   MessageChannel
   (send [this msg]
     (.write ^Channel @ch-ref msg))
+  (channel-addr [this]
+    (.getLocalAddress ^Channel @ch-ref))
   (close [this]
     (.close ^Channel @ch-ref)))
 
@@ -29,6 +32,8 @@
   MessageChannel
   (send [this msg]
     (.write ch msg))
+  (channel-addr [this]
+    (.getLocalAddress ch))
   (close [this]
     (.close ch)))
 
@@ -71,8 +76,9 @@
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^ExceptionEvent e#]
          (when-let [handler# (:on-error handlers#)]
-           (let [exp# (.getCause e#)]
-             (handler# exp#)))
+           (let [ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))
+                 exp# (.getCause e#)]
+             (handler# ch# exp#)))
          (.sendUpstream  ctx# e#))
        
        (messageReceived [^ChannelHandlerContext ctx#
