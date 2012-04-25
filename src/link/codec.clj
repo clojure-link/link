@@ -58,7 +58,7 @@
   (encoder [options ^String data ^ChannelBuffer buffer]
            (let [{:keys [prefix encoding delimiter]} options
                  encoding (name encoding)
-                 bytes (.getBytes data encoding)]
+                 bytes (.getBytes (or data "") encoding)]
              (cond
               ;; length prefix string
               (nil? delimiter)
@@ -98,9 +98,10 @@
 (defcodec byte-block
   (encoder [options ^ByteBuffer data ^ChannelBuffer buffer]
            (let [{prefix :prefix} options
-                 byte-length (.remaining data)]
+                 byte-length (if (nil? data) 0 (.remaining data))]
              ((:encoder prefix) byte-length buffer)
-             (.writeBytes buffer ^ByteBuffer data)
+             (if-not (nil? data)
+               (.writeBytes buffer ^ByteBuffer data))
              buffer))
   (decoder [options ^ChannelBuffer buffer]
            (let [{prefix :prefix} options
