@@ -19,14 +19,39 @@
   (channel-addr [this])
   (close [this]))
 
-(deftype WrappedSocketChannel [ch-ref]
+(defprotocol RefreshableChannel
+  (valid? [this])
+  (refresh [this]))
+
+(defn- client-channel-valid? [^Channel ch]
+  (not (or (nil? ch)
+           (.isOpen ch)
+           (.isBound ch)
+           (.isConnected ch))))
+
+(deftype ClientSocketChannel [ch-ref reconnect-fn]
   MessageChannel
   (send [this msg]
     (.write ^Channel @ch-ref msg))
   (channel-addr [this]
     (.getLocalAddress ^Channel @ch-ref))
   (close [this]
-    (.close ^Channel @ch-ref)))
+    (.close ^Channel @ch-ref))
+  
+  RestartableChannel
+  (valid? [this]
+    (let [ch @ch-ref]
+      (not (or (nil? ch)
+               (.isOpen ch)
+               (.isBound ch)
+               (.isConnected ch)))))
+  (refresh [this]
+    (swap! ch-ref (fn []
+                    (if-not (valid? this)
+                      (let [fu (reconnect-fn)]
+                        (when (.isSuccess ^ChannelFuture fu)
+                          (.getChannel ^ChannelFuture fu)))
+                      @ch-ref)))))
 
 (deftype SimpleWrappedSocketChannel [^Channel ch]
   MessageChannel
