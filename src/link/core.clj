@@ -1,5 +1,6 @@
 (ns link.core
   (:refer-clojure :exclude [send])
+  (:import [clojure.lang IDeref])
   (:import [java.net InetSocketAddress])
   (:import [java.nio.channels ClosedChannelException])
   (:import [org.jboss.netty.channel
@@ -19,39 +20,38 @@
   (channel-addr [this])
   (close [this]))
 
-(defprotocol RefreshableChannel
-  (valid? [this])
-  (refresh [this]))
+(deftype BlockingAtomReference [^Object lock atomic-ref
+                                factory-fn validator-fn]
+  IDeref
+  (deref [this]
+    (let [value @the-ref]
+      (if (validator-fn value)
+        value
+        (do
+          (locking lock
+            (if (validator-fn @the-ref)
+              @the-ref
+              (do
+                (loop [r (factory-fn)]
+                  (if (:success r)
+                    (swap! the-ref (:result r))
+                    (recur (factory-fn))))))))))))
 
-(defn- client-channel-valid? [^Channel ch]
-  (not (or (nil? ch)
-           (.isOpen ch)
-           (.isBound ch)
-           (.isConnected ch))))
+(defn batom [atomic-ref factory-fn validator-fn]
+  (BlockingAtomReference. (object.)
+                          atomic-ref
+                          factory-fn
+                          validator-fn))
 
-(deftype ClientSocketChannel [ch-ref reconnect-fn]
+(deftype ClientSocketChannel [ch-ref]
   MessageChannel
   (send [this msg]
-    (.write ^Channel @ch-ref msg))
+    (let [ch @ch-ref]
+     (.write ^Channel @ch msg)))
   (channel-addr [this]
     (.getLocalAddress ^Channel @ch-ref))
   (close [this]
-    (.close ^Channel @ch-ref))
-  
-  RestartableChannel
-  (valid? [this]
-    (let [ch @ch-ref]
-      (not (or (nil? ch)
-               (.isOpen ch)
-               (.isBound ch)
-               (.isConnected ch)))))
-  (refresh [this]
-    (swap! ch-ref (fn []
-                    (if-not (valid? this)
-                      (let [fu (reconnect-fn)]
-                        (when (.isSuccess ^ChannelFuture fu)
-                          (.getChannel ^ChannelFuture fu)))
-                      @ch-ref)))))
+    (.close ^Channel @ch-ref)))
 
 (deftype SimpleWrappedSocketChannel [^Channel ch]
   MessageChannel

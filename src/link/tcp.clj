@@ -13,7 +13,7 @@
             ChannelPipelineFactory
             Channel
             ChannelHandlerContext
-            ])
+            ChannelFuture])
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory])
@@ -72,6 +72,20 @@
                       ordered?
                       tcp-options)))
 
+(defn- client-channel-valid? [^Channel ch]
+  (not (or (nil? ch)
+           (.isOpen ch)
+           (.isBound ch)
+           (.isConnected ch))))
+
+(defn- connect-fn [bootstrap addr]
+  (let [chf (.. (.connect bootstrap addr)
+                awaitUninterruptibly)]
+    (if (.isSuccess ^ChannelFuture chf)
+      {:success true
+       :result (.getChannel ^ChannelFuture chr)}
+      {:success false})))
+
 (defn tcp-client [host port handler
                   & {:keys [encoder decoder codec auto-reconnect tcp-options]
                      :or {encoder nil
@@ -99,6 +113,7 @@
                  getChannel)]
       (reset! chref ch)
       (WrappedSocketChannel. chref))))
+
 
 
 
