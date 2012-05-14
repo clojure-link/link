@@ -20,38 +20,28 @@
   (channel-addr [this])
   (close [this]))
 
-(deftype BlockingAtomReference [^Object lock atomic-ref
-                                factory-fn validator-fn]
-  IDeref
-  (deref [this]
-    (let [value @the-ref]
-      (if (validator-fn value)
-        value
-        (do
-          (locking lock
-            (if (validator-fn @the-ref)
-              @the-ref
-              (do
-                (loop [r (factory-fn)]
-                  (if (:success r)
-                    (swap! the-ref (:result r))
-                    (recur (factory-fn))))))))))))
+(defn- client-channel-valid? [^Channel ch]
+  (and (not (nil? ch))
+       (.isOpen ch)
+       (.isBound ch)
+       (.isConnected ch)))
 
-(defn batom [atomic-ref factory-fn validator-fn]
-  (BlockingAtomReference. (object.)
-                          atomic-ref
-                          factory-fn
-                          validator-fn))
-
-(deftype ClientSocketChannel [ch-ref]
+(deftype ClientSocketChannel [ch-agent factory-fn]
   MessageChannel
   (send [this msg]
-    (let [ch @ch-ref]
-     (.write ^Channel @ch msg)))
+    (clojure.core/send ch-agent
+                       (fn [ch]
+                         (let [valid (client-channel-valid? ch)
+                               ch- (if valid ch (factory-fn))]
+                           (.write ^Channel ch- msg)
+                           ch-))))
   (channel-addr [this]
-    (.getLocalAddress ^Channel @ch-ref))
+    (.getLocalAddress ^Channel @ch-agent))
   (close [this]
-    (.close ^Channel @ch-ref)))
+    (clojure.core/send ch-agent
+                       (fn [ch]
+                         (.close ^Channel ch)))
+    (await ch-agent)))
 
 (deftype SimpleWrappedSocketChannel [^Channel ch]
   MessageChannel

@@ -17,7 +17,7 @@
   (:import [org.jboss.netty.channel.socket.nio
             NioServerSocketChannelFactory
             NioClientSocketChannelFactory])
-  (:import [link.core WrappedSocketChannel]))
+  (:import [link.core ClientSocketChannel]))
 
 (defn- create-pipeline [& handlers]
   (reify ChannelPipelineFactory
@@ -26,19 +26,6 @@
         (doseq [i (range (count handlers))]
           (.addLast pipeline (str "handler-" i) (nth handlers i)))
         pipeline))))
-
-
-(defn reconnector [^ClientBootstrap bootstrap
-                   ^InetSocketAddress addr
-                   chref]
-  (create-handler
-   (on-error ([_ exp]
-                (when (instance? ClosedChannelException exp)
-                  (let [chfuture (.connect bootstrap addr)
-                        ch (.. chfuture
-                               awaitUninterruptibly
-                               getChannel)]
-                    (reset! chref ch)))))))
 
 (defn- start-tcp-server [port handler encoder decoder threaded?
                          ordered tcp-options]
@@ -72,26 +59,23 @@
                       ordered?
                       tcp-options)))
 
-(defn- client-channel-valid? [^Channel ch]
-  (not (or (nil? ch)
-           (.isOpen ch)
-           (.isBound ch)
-           (.isConnected ch))))
-
-(defn- connect-fn [bootstrap addr]
-  (let [chf (.. (.connect bootstrap addr)
-                awaitUninterruptibly)]
+(defn- connect [bootstrap addr]
+  (loop [chf (.. (.connect bootstrap addr)
+                 awaitUninterruptibly)
+         interval 5000]
     (if (.isSuccess ^ChannelFuture chf)
-      {:success true
-       :result (.getChannel ^ChannelFuture chr)}
-      {:success false})))
+      (.getChannel ^ChannelFuture chf)
+      (do
+        (Thread/sleep interval)
+        (recur (.. (.connect bootstrap addr)
+                   awaitUninterruptibly)
+               interval)))))
 
 (defn tcp-client [host port handler
-                  & {:keys [encoder decoder codec auto-reconnect tcp-options]
+                  & {:keys [encoder decoder codec tcp-options]
                      :or {encoder nil
                           decoder nil
                           codec nil
-                          auto-reconnect false
                           tcp-options {}}}]
   (let [encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))
@@ -100,19 +84,13 @@
                     (Executors/newCachedThreadPool)
                     (Executors/newCachedThreadPool)))
         addr (InetSocketAddress. ^String host ^Integer port)
-        chref (atom nil)
-        handlers (if auto-reconnect
-                   [encoder decoder
-                    (reconnector bootstrap addr chref) handler]
-                   [encoder decoder handler])
+        handlers [encoder decoder handler]
         pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
-    (let [ch (.. (.connect bootstrap addr)
-                 awaitUninterruptibly
-                 getChannel)]
-      (reset! chref ch)
-      (WrappedSocketChannel. chref))))
+    (let [connect-fn (fn [] (connect bootstrap addr))
+          chref (agent (connect-fn))]
+      (ClientSocketChannel. chref connect-fn))))
 
 
 
