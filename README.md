@@ -8,7 +8,7 @@ link is the event-driven network library used by
 ### Leiningen
 
 ```
-[link "0.3.1"]
+[link "0.3.2"]
 ```
 
 ### API
