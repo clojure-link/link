@@ -7,7 +7,7 @@
 (deftest test-codecs
   (are [data codec]
        (let [buffer (ChannelBuffers/buffer 256)]
-         (is (= data (decode codec (encode codec data buffer)))))
+         (is (= data (decode* codec (encode* codec data buffer)))))
 
        1 (byte)
        1 (int16)
@@ -40,7 +40,7 @@
     (.writeBytes buffer (.getBytes "Hello World" "UTF-8")) 
 
 
-    (is (nil? (decode codec buffer)))))
+    (is (nil? (decode* codec buffer)))))
 
 
 

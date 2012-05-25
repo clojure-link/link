@@ -10,7 +10,9 @@
             ChannelUpstreamHandler
             ChannelEvent
             MessageEvent
-            ChannelHandlerContext]))
+            ChannelHandlerContext])
+  (:import [org.jboss.netty.handler.codec.frame
+            FrameDecoder]))
 
 (defmacro defcodec [sym encoder-fn decoder-fn]
   `(defn ~sym [& options#]
@@ -159,12 +161,12 @@
                  (if-let [r0 ((:decoder (first c)) buffer)] 
                    (recur (rest c) (conj r r0))))))))
 
-(defn encode
-  ([codec data] (encode codec data (ChannelBuffers/dynamicBuffer)))
+(defn encode*
+  ([codec data] (encode* codec data (ChannelBuffers/dynamicBuffer)))
   ([codec data ^ChannelBuffer buffer]
      ((:encoder codec) data buffer)))
 
-(defn decode [codec ^ChannelBuffer buffer]
+(defn decode* [codec ^ChannelBuffer buffer]
   ((:decoder codec) buffer))
 
 (defn netty-encoder [codec]
@@ -176,29 +178,14 @@
         (.sendDownstream ctx e)
         (do
           (let [data (.getMessage ^MessageEvent e)
-                buffer (encode codec data)]
+                buffer (encode* codec data)]
             (Channels/write ctx (.getFuture e) buffer
                             (.getRemoteAddress ^MessageEvent e))))))))
 
+
+
 (defn netty-decoder [codec]
-  (let [cumulation (ChannelBuffers/dynamicBuffer)]
-    (reify ChannelUpstreamHandler
-      (^void handleUpstream [this
-                             ^ChannelHandlerContext ctx
-                             ^ChannelEvent e]
-       (if-not (instance? MessageEvent e)
-         (.sendUpstream ctx e)
-         (let [in (.getMessage ^MessageEvent e)]
-           (.writeBytes ^ChannelBuffer cumulation ^ChannelBuffer in)
-           (loop []
-             (when (.readable cumulation)
-               (.markReaderIndex cumulation)
-               (if-let [data (decode codec cumulation)]
-                 (do
-                   (Channels/fireMessageReceived
-                    ctx data (.getRemoteAddress ^MessageEvent e))
-                   (recur))
-                 (do
-                   (.resetReaderIndex cumulation)))))
-           (.discardReadBytes cumulation)))))))
+  (proxy [FrameDecoder]  []
+    (decode [ctx ch buf]
+      (decode* codec buf))))
 

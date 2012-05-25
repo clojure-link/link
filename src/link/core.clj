@@ -17,7 +17,9 @@
 
 (defprotocol MessageChannel
   (send [this msg])
+  (valid? [this])
   (channel-addr [this])
+  (remote-addr [this])
   (close [this]))
 
 (defn- client-channel-valid? [^Channel ch]
@@ -37,11 +39,15 @@
                            ch-))))
   (channel-addr [this]
     (.getLocalAddress ^Channel @ch-agent))
+  (remote-addr [this]
+    (.getRemoteAddress ^Channel @ch-agent))
   (close [this]
     (clojure.core/send ch-agent
                        (fn [ch]
                          (.close ^Channel ch)))
-    (await ch-agent)))
+    (await ch-agent))
+  (valid? [this]
+    (client-channel-valid? @ch-agent)))
 
 (deftype SimpleWrappedSocketChannel [^Channel ch]
   MessageChannel
@@ -49,8 +55,12 @@
     (.write ch msg))
   (channel-addr [this]
     (.getLocalAddress ch))
+  (remote-addr [this]
+    (.getRemoteAddress ch))
   (close [this]
-    (.close ch)))
+    (.close ch))
+  (valid? [this]
+    (and (not (nil? ch)) (.isOpen ch) (.isBound ch))))
 
 (defmacro ^{:private true} make-handler-macro [evt]
   (let [handler-name (str "on-" evt)
