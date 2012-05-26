@@ -186,6 +186,10 @@
 
 (defn netty-decoder [codec]
   (proxy [FrameDecoder]  []
-    (decode [ctx ch buf]
-      (decode* codec buf))))
+    (decode [ctx ch ^ChannelBuffer buf]
+      (.markReaderIndex buf)
+      (let [frame (decode* codec buf)]
+        (when (nil? frame)
+          (.resetReaderIndex buf))
+        frame))))
 
