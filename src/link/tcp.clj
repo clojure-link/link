@@ -59,7 +59,7 @@
                       ordered?
                       tcp-options)))
 
-(defn- connect [bootstrap addr]
+(defn- connect [^ClientBootstrap bootstrap addr]
   (loop [chf (.. (.connect bootstrap addr)
                  awaitUninterruptibly)
          interval 5000]
