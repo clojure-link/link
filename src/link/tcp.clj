@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
+  (:use [link.pool :only [pool]])
   (:import [java.net InetSocketAddress])
   (:import [java.util.concurrent Executors])
   (:import [java.nio.channels ClosedChannelException])
@@ -92,6 +93,32 @@
           chref (agent (connect-fn))]
       (ClientSocketChannel. chref connect-fn))))
 
+(defn tcp-client-pool [host port handler
+                       & {:keys [encoder decoder codec tcp-options]
+                          :or {encoder nil
+                               decoder nil
+                               codec nil
+                               tcp-options {}}}]
+  (let [encoder (netty-encoder (or encoder codec))
+        decoder (netty-decoder (or decoder codec))
+        bootstrap (ClientBootstrap.
+                   (NioClientSocketChannelFactory.
+                    (Executors/newCachedThreadPool)
+                    (Executors/newCachedThreadPool)))
+        addr (InetSocketAddress. ^String host ^Integer port)
+        handlers [encoder decoder handler]
+        pipeline (apply create-pipeline handlers)]
+    (.setPipelineFactory bootstrap pipeline)
+    (.setOptions bootstrap tcp-options)
+    (let [maker (fn []
+                  (let [conn-fn (fn [] (connect bootstrap addr))]
+                    (ClientSocketChannel. (agent (conn-fn)) conn-fn)))]
+      (pool {:max-active 8
+             :exhausted-policy :block
+             :max-wait -1}
+            (makeObject [this] (maker))
+            (destroyObject [this client] (close client))
+            (validateObject [this client] (valid? client)))))
 
 
 
