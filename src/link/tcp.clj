@@ -118,7 +118,7 @@
              :max-wait -1}
             (makeObject [this] (maker))
             (destroyObject [this client] (close client))
-            (validateObject [this client] (valid? client)))))
+            (validateObject [this client] (valid? client))))))
 
 
 
