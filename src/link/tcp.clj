@@ -60,6 +60,22 @@
                       ordered?
                       tcp-options)))
 
+(defn tcp-client-factory [handler
+                          & {:keys [encoder decoder codec tcp-options]
+                             :or {tcp-options {}}}]
+  (let [encoder (netty-encoder (or encoder codec))
+        decoder (netty-decoder (or decoder codec))
+        bootstrap (ClientBootstrap.
+                   (NioClientSocketChannelFactory.
+                    (Executors/newCachedThreadPool)
+                    (Executors/newCachedThreadPool)))
+        handlers [encoder decoder handler]
+        pipeline (apply create-pipeline handlers)]
+    (.setPipelineFactory bootstrap pipeline)
+    (.setOptions bootstrap tcp-options)
+    bootstrap))
+
+;; TODO no wait
 (defn- connect [^ClientBootstrap bootstrap addr]
   (loop [chf (.. (.connect bootstrap addr)
                  awaitUninterruptibly)
@@ -72,55 +88,25 @@
                    awaitUninterruptibly)
                interval)))))
 
-(defn tcp-client [host port handler
-                  & {:keys [encoder decoder codec tcp-options]
-                     :or {encoder nil
-                          decoder nil
-                          codec nil
-                          tcp-options {}}}]
-  (let [encoder (netty-encoder (or encoder codec))
-        decoder (netty-decoder (or decoder codec))
-        bootstrap (ClientBootstrap.
-                   (NioClientSocketChannelFactory.
-                    (Executors/newCachedThreadPool)
-                    (Executors/newCachedThreadPool)))
-        addr (InetSocketAddress. ^String host ^Integer port)
-        handlers [encoder decoder handler]
-        pipeline (apply create-pipeline handlers)]
-    (.setPipelineFactory bootstrap pipeline)
-    (.setOptions bootstrap tcp-options)
+(defn tcp-client [^ClientBootstrap bootstrap host port]
+  (let [addr (InetSocketAddress. ^String host ^Integer port)]
     (let [connect-fn (fn [] (connect bootstrap addr))
           chref (agent (connect-fn))]
       (ClientSocketChannel. chref connect-fn))))
 
-(defn tcp-client-pool [host port handler
-                       & {:keys [encoder decoder codec
-                                 tcp-options pool-options]
-                          :or {encoder nil
-                               decoder nil
-                               codec nil
-                               tcp-options {}
-                               pool-options {:max-active 8
+(defn tcp-client-pool [^ClientBootstrap bootstrap host port
+                       & {:keys [pool-options]
+                          :or {pool-options {:max-active 8
                                              :exhausted-policy :block
                                              :max-wait -1}}}]
-  (let [encoder (netty-encoder (or encoder codec))
-        decoder (netty-decoder (or decoder codec))
-        bootstrap (ClientBootstrap.
-                   (NioClientSocketChannelFactory.
-                    (Executors/newCachedThreadPool)
-                    (Executors/newCachedThreadPool)))
-        addr (InetSocketAddress. ^String host ^Integer port)
-        handlers [encoder decoder handler]
-        pipeline (apply create-pipeline handlers)]
-    (.setPipelineFactory bootstrap pipeline)
-    (.setOptions bootstrap tcp-options)
-    (let [maker (fn []
-                  (let [conn-fn (fn [] (connect bootstrap addr))]
-                    (ClientSocketChannel. (agent (conn-fn)) conn-fn)))]
-      (pool pool-options
-            (makeObject [this] (maker))
-            (destroyObject [this client] (close client))
-            (validateObject [this client] (valid? client))))))
+  (let [addr (InetSocketAddress. ^String host ^Integer port)
+        maker (fn []
+                (let [conn-fn (fn [] (connect bootstrap addr))]
+                  (ClientSocketChannel. (agent (conn-fn)) conn-fn)))]
+    (pool pool-options
+          (makeObject [this] (maker))
+          (destroyObject [this client] (close client))
+          (validateObject [this client] (valid? client)))))
 
 
 
