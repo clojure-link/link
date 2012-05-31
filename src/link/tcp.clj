@@ -94,11 +94,15 @@
       (ClientSocketChannel. chref connect-fn))))
 
 (defn tcp-client-pool [host port handler
-                       & {:keys [encoder decoder codec tcp-options]
+                       & {:keys [encoder decoder codec
+                                 tcp-options pool-options]
                           :or {encoder nil
                                decoder nil
                                codec nil
-                               tcp-options {}}}]
+                               tcp-options {}
+                               pool-options {:max-active 8
+                                             :exhausted-policy :block
+                                             :max-wait -1}}}]
   (let [encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))
         bootstrap (ClientBootstrap.
@@ -113,9 +117,7 @@
     (let [maker (fn []
                   (let [conn-fn (fn [] (connect bootstrap addr))]
                     (ClientSocketChannel. (agent (conn-fn)) conn-fn)))]
-      (pool {:max-active 8
-             :exhausted-policy :block
-             :max-wait -1}
+      (pool pool-options
             (makeObject [this] (maker))
             (destroyObject [this client] (close client))
             (validateObject [this client] (valid? client))))))
