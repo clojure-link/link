@@ -75,7 +75,6 @@
     (.setOptions bootstrap tcp-options)
     bootstrap))
 
-;; TODO no wait
 (defn- connect [^ClientBootstrap bootstrap addr]
   (loop [chf (.. (.connect bootstrap addr)
                  awaitUninterruptibly)
@@ -88,21 +87,26 @@
                    awaitUninterruptibly)
                interval)))))
 
-(defn tcp-client [^ClientBootstrap bootstrap host port]
+(defn tcp-client [^ClientBootstrap bootstrap host port
+                  & {:keys [lazy-connect]
+                     :or {lazy-connect false}}]
   (let [addr (InetSocketAddress. ^String host ^Integer port)]
     (let [connect-fn (fn [] (connect bootstrap addr))
-          chref (agent (connect-fn))]
+          chref (agent (if-not lazy-connect (connect-fn)))]
       (ClientSocketChannel. chref connect-fn))))
 
 (defn tcp-client-pool [^ClientBootstrap bootstrap host port
-                       & {:keys [pool-options]
-                          :or {pool-options {:max-active 8
+                       & {:keys [lazy-connect pool-options]
+                          :or {lazy-connect false
+                               pool-options {:max-active 8
                                              :exhausted-policy :block
                                              :max-wait -1}}}]
   (let [addr (InetSocketAddress. ^String host ^Integer port)
         maker (fn []
                 (let [conn-fn (fn [] (connect bootstrap addr))]
-                  (ClientSocketChannel. (agent (conn-fn)) conn-fn)))]
+                  (ClientSocketChannel.
+                   (agent (if-not lazy-connect (conn-fn)))
+                   conn-fn)))]
     (pool pool-options
           (makeObject [this] (maker))
           (destroyObject [this client] (close client))
