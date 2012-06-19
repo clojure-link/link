@@ -97,7 +97,8 @@
     (cond
      (nil? body)
      (.setHeader ^HttpResponse resp
-                 ^String HttpHeaders$Names/CONTENT_LENGTH 0)
+                 ^String HttpHeaders$Names/CONTENT_LENGTH
+                 ^Integer (int 0))
      
      (instance? String body)
      (let [buffer (ChannelBuffers/dynamicBuffer)
