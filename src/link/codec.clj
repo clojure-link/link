@@ -99,15 +99,18 @@
 
 (defcodec byte-block
   (encoder [options ^ByteBuffer data ^ChannelBuffer buffer]
-           (let [{prefix :prefix} options
-                 byte-length (if (nil? data) 0 (.remaining data))]
-             ((:encoder prefix) byte-length buffer)
+           (let [{prefix :prefix encode-length-fn :encode-length-fn} options
+                 encode-length-fn (or encode-length-fn identity)
+                 byte-length (if (nil? data) 0 (.remaining data))
+                 encoded-length (encode-length-fn byte-length)]
+             ((:encoder prefix) encoded-length buffer)
              (if-not (nil? data)
                (.writeBytes buffer ^ByteBuffer data))
              buffer))
   (decoder [options ^ChannelBuffer buffer]
-           (let [{prefix :prefix} options
-                 byte-length ((:decoder prefix) buffer)]
+           (let [{prefix :prefix decode-length-fn :decode-length-fn} options
+                 decode-length-fn (or decode-length-fn identity)
+                 byte-length (decode-length-fn ((:decoder prefix) buffer))]
              (if-not (or (nil? byte-length)
                          (> byte-length (.readableBytes buffer)))
                (let [local-buffer (ByteBuffer/allocate byte-length)]
