@@ -19,14 +19,15 @@
   (reify ChannelPipelineFactory
     (getPipeline [this]
       (let [pipeline (Channels/pipeline)]
-        (doseq [i (range (count handlers))]
-          (.addLast pipeline (str "handler-" i) (nth handlers i)))
+        (dorun (map-indexed 
+                  #(.addLast pipeline (str "handler-" %1) %2) 
+                  handlers))
         pipeline))))
 
 (defn get-ssl-handler [context client-mode?]
   (SslHandler. (doto (.createSSLEngine context)
                  (.setIssueHandshake true)
-		 (.setUseClientMode client-mode?))))
+		             (.setUseClientMode client-mode?))))
 
 (defn- start-tcp-server [port handler encoder decoder threaded?
                          ordered tcp-options ssl-context]
