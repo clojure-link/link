@@ -85,7 +85,7 @@
                interval)))))
 
 (defn tcp-client [^NioClientSocketChannelFactory factory
-                  handler host port
+                  host port handler
                   & {:keys [lazy-connect encoder decoder codec tcp-options]
                      :or {lazy-connect false
                           tcp-options {}}}]
