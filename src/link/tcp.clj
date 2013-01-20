@@ -67,20 +67,10 @@
                       tcp-options
                       ssl-context)))
 
-(defn tcp-client-factory [handler
-                          & {:keys [encoder decoder codec tcp-options]
-                             :or {tcp-options {}}}]
-  (let [encoder (netty-encoder (or encoder codec))
-        decoder (netty-decoder (or decoder codec))
-        bootstrap (ClientBootstrap.
-                   (NioClientSocketChannelFactory.
-                    (Executors/newCachedThreadPool)
-                    (Executors/newCachedThreadPool)))
-        handlers [encoder decoder handler]
-        pipeline (apply create-pipeline handlers)]
-    (.setPipelineFactory bootstrap pipeline)
-    (.setOptions bootstrap tcp-options)
-    bootstrap))
+(defn tcp-client-factory []
+  (NioClientSocketChannelFactory.
+   (Executors/newCachedThreadPool)
+   (Executors/newCachedThreadPool)))
 
 (defn- connect [^ClientBootstrap bootstrap addr]
   (loop [chf (.. (.connect bootstrap addr)
@@ -94,11 +84,20 @@
                    awaitUninterruptibly)
                interval)))))
 
-(defn tcp-client [^ClientBootstrap bootstrap host port
-                  & {:keys [lazy-connect]
-                     :or {lazy-connect false}}]
+(defn tcp-client [^NioClientSocketChannelFactory factory
+                  handler host port
+                  & {:keys [lazy-connect encoder decoder codec tcp-options]
+                     :or {lazy-connect false
+                          tcp-options {}}}]
   (let [addr (InetSocketAddress. ^String host ^Integer port)]
-    (let [connect-fn (fn [] (connect bootstrap addr))
+    (let [encoder (netty-encoder (or encoder codec))
+          decoder (netty-decoder (or decoder codec))
+          handlers [encoder decoder handler]
+          pipeline (apply create-pipeline handlers)
+          bootstrap (doto (ClientBootstrap. factory)
+                      (.setPipelineFactory pipeline)
+                      (.setOptions tcp-options))
+          connect-fn (fn [] (connect bootstrap addr))
           chref (agent (if-not lazy-connect (connect-fn)))]
       (ClientSocketChannel. chref connect-fn))))
 
