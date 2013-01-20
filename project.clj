@@ -1,4 +1,4 @@
-(defproject org.clojars.pauld/link "0.3.4-SNAPSHOT"
+(defproject org.clojars.pauld/link "0.4.0-SNAPSHOT"
   :description
   "A straightforward (not-so-clojure) clojure wrapper for java nio framework.
    This fork provides tls support."
