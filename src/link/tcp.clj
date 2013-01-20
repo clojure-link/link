@@ -102,3 +102,8 @@
           chref (agent (connect-fn))]
       (ClientSocketChannel. chref connect-fn))))
 
+(defn stop-server [{channel :channel bootstrap :bootstrap}]
+  "Takes a link.core.Server object that is returned when a server is started,
+   then stops the server."
+  (.unbind channel)
+  (.releaseExternalResources bootstrap))
