@@ -44,7 +44,7 @@
         pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
-    (.bind bootstrap (InetSocketAddress. port))))
+    (link.core.Server. bootstrap (.bind bootstrap (InetSocketAddress. port)))))
 
 (defn tcp-server [port handler
                   & {:keys [encoder decoder codec threaded?
@@ -101,7 +101,4 @@
     (let [connect-fn (fn [] (connect bootstrap addr))
           chref (agent (connect-fn))]
       (ClientSocketChannel. chref connect-fn))))
-
-
-
 

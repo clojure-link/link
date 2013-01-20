@@ -1,19 +1,17 @@
 (ns link.core
   (:refer-clojure :exclude [send])
-  (:import [clojure.lang IDeref])
-  (:import [java.net InetSocketAddress])
-  (:import [java.nio.channels ClosedChannelException])
-  (:import [org.jboss.netty.channel
-            Channel
-            ChannelHandlerContext
-            MessageEvent
-            ExceptionEvent
-            WriteCompletionEvent
-            SimpleChannelUpstreamHandler])
-  (:import [org.jboss.netty.handler.execution
-            ExecutionHandler
-            MemoryAwareThreadPoolExecutor
-            OrderedMemoryAwareThreadPoolExecutor]))
+  (:import [clojure.lang IDeref]
+           [java.net InetSocketAddress]
+           [java.nio.channels ClosedChannelException]
+           [org.jboss.netty.bootstrap ServerBootstrap ClientBootstrap]
+           [org.jboss.netty.channel Channel ChannelHandlerContext MessageEvent
+            ExceptionEvent WriteCompletionEvent SimpleChannelUpstreamHandler]
+           [org.jboss.netty.handler.execution ExecutionHandler
+            MemoryAwareThreadPoolExecutor OrderedMemoryAwareThreadPoolExecutor]))
+
+(defrecord Server [#^ServerBootstrap bootstrap channel])
+
+(defrecord Client [#^ClientBootstrap bootstrap])
 
 (defprotocol MessageChannel
   (send [this msg])
