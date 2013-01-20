@@ -46,7 +46,7 @@
         pipeline (apply create-pipeline handlers)]
     (.setPipelineFactory bootstrap pipeline)
     (.setOptions bootstrap tcp-options)
-    (.bind bootstrap (InetSocketAddress. port))))
+    (link.core.Server. bootstrap (.bind bootstrap (InetSocketAddress. port)))))
 
 (defn tcp-server [port handler
                   & {:keys [encoder decoder codec threaded?
@@ -119,5 +119,9 @@
           (destroyObject [this client] (close client))
           (validateObject [this client] (valid? client)))))
 
-
+(defn stop-server [{channel :channel bootstrap :bootstrap}]
+  "Takes a link.core.Server object that is returned when a server is started,
+   then stops the server."
+  (.unbind channel)
+  (.releaseExternalResources bootstrap))
 

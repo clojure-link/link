@@ -161,5 +161,5 @@
         pipeline (create-http-pipeline
                   (create-http-handler-from-ring ring-fn debug) threaded?)]
     (.setPipelineFactory bootstrap pipeline)
-    (.bind bootstrap (InetSocketAddress. port))))
+    (link.core.Server. bootstrap (.bind bootstrap (InetSocketAddress. port)))))
 
