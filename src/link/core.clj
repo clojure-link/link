@@ -96,4 +96,4 @@
   `(create-handler0 true ~@body))
 
 (defmacro create-stateful-handler [& body]
-  `(create-handler0 false ~@body))
+  `(fn [] (create-handler0 false ~@body)))
