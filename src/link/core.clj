@@ -42,7 +42,7 @@
 (deftype SimpleWrappedSocketChannel [^Channel ch]
   MessageChannel
   (send [this msg]
-    (.write ch msg))
+    (.writeAndFlush ch msg))
   (channel-addr [this]
     (.localAddress ch))
   (remote-addr [this]
@@ -65,9 +65,10 @@
 (make-handler-macro active)
 (make-handler-macro inactive)
 
-(defmacro create-handler [& body]
+(defmacro create-handler0 [sharable & body]
   `(let [handlers# (merge ~@body)]
      (proxy [SimpleChannelInboundHandler] []
+       (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-active handlers#)]
            (handler# (SimpleWrappedSocketChannel. (.channel ctx#))))
@@ -80,13 +81,19 @@
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
-         (when-let [handler# (:on-error handlers#)]
+         (if-let [handler# (:on-error handlers#)]
            (let [ch# (SimpleWrappedSocketChannel. (.channel ctx#))]
-             (handler# ch# e#)))
-         (.fireExceptionCaught  ctx# e#))
+             (handler# ch# e#))
+           (.fireExceptionCaught  ctx# e#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
-         (when-let [handler# (:on-message handlers#)]
+         (if-let [handler# (:on-message handlers#)]
            (let [ch# (SimpleWrappedSocketChannel. (.channel ctx#))]
-             (handler# ch# msg#)))
-         (.fireChannelRead ctx# msg#)))))
+             (handler# ch# msg#))
+           (.fireChannelRead ctx# msg#))))))
+
+(defmacro create-handler [& body]
+  `(create-handler0 true ~@body))
+
+(defmacro create-stateful-handler [& body]
+  `(create-handler0 false ~@body))

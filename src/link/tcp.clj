@@ -4,10 +4,9 @@
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:import [java.net InetAddress InetSocketAddress]
            [java.util.concurrent Executors]
-           [java.nio.channels ClosedChannelException]
            [javax.net.ssl SSLContext]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
-           [io.netty.channel ChannelInitializer Channel
+           [io.netty.channel ChannelInitializer Channel ChannelHandler
             ChannelHandlerContext ChannelFuture EventLoopGroup]
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
@@ -16,18 +15,21 @@
            [link.core ClientSocketChannel]))
 
 ;; handler specs
-;; :handler the handler created by create-handler
+;; :handler the handler created by create-handler or a factory
+;; function for stateful handler
 ;; :executor the executor that handler will run on
 (defn- channel-init [handler-specs]
   (proxy [ChannelInitializer] []
-    (initChannel [this ^Channel ch]
+    (initChannel [^Channel ch]
       (let [pipeline (.pipeline ch)]
         (doseq [hs handler-specs]
-          (if-not (:executor hs)
-            (if (map? hs)
-              (.addLast pipeline (:handler hs))
-              (.addLast pipeline hs))
-            (.addLast pipeline (:executor hs) (:handler hs))))))))
+          (if (map? hs)
+            (let [h (if (fn? (:handler hs)) ((:handler hs)) (:handler hs))]
+              (if-not (:executor hs)
+                (.addLast pipeline (into-array ChannelHandler [h]))
+                (.addLast pipeline (:executor hs) (h))))
+            (let [h (if (fn? hs) (hs) hs)]
+              (.addLast pipeline (into-array ChannelHandler [h])))))))))
 
 (defn ssl-handler [^SSLContext context client-mode?]
   (SslHandler. (doto (.createSSLEngine context)
@@ -47,7 +49,7 @@
                    (conj handlers decoder)
                    handlers)
         handlers (if ssl-context
-                   (conj handlers (ssl-handler ssl-handler))
+                   (conj handlers (ssl-handler ssl-context))
                    handlers)
         channel-initializer (channel-init handlers)
 

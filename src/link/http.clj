@@ -16,8 +16,9 @@
             FullHttpResponse
             HttpHeaders
             HttpHeaders$Names
-            HttpServerCodec
+            HttpRequestDecoder
             HttpObjectAggregator
+            HttpResponseEncoder
             HttpResponseStatus
             DefaultFullHttpResponse]))
 
@@ -34,17 +35,17 @@
     (subs uri 0 (.indexOf uri "?"))
     uri))
 
-(defn ring-request [ch req addr]
+(defn ring-request [ch req]
   (let [server-addr (channel-addr ch)
         uri (.getUri ^FullHttpRequest req)]
     {:server-addr (.getHostName ^InetSocketAddress server-addr)
      :server-port (.getPort ^InetSocketAddress server-addr)
-     :remote-addr (.getHostName ^InetSocketAddress addr)
+     :remote-addr (.getHostName ^InetSocketAddress (remote-addr ch))
      :uri (find-request-uri uri)
      :query-string (find-query-string uri)
      :scheme :http
      :request-method (keyword (lower-case
-                               (.. ^FullHttpRequest req getMethod getName)))
+                               (.. ^FullHttpRequest req getMethod name)))
      :content-type (HttpHeaders/getHeader
                     req HttpHeaders$Names/CONTENT_TYPE)
      :content-length (HttpHeaders/getContentLength req)
@@ -58,41 +59,46 @@
 
 (defn ring-response [resp]
   (let [{status :status headers :headers body :body} resp
+        status (or status 200)
         content (cond
                  (nil? body) (Unpooled/buffer 0)
 
                  (instance? String body)
                  (let [buffer (Unpooled/buffer)
                        bytes (.getBytes ^String body "UTF-8")]
-                   (.writeBytes ^ByteBuf buffer ^bytes bytes))
+                   (.writeBytes ^ByteBuf buffer ^bytes bytes)
+                   buffer)
 
                  (sequential? body)
                  (let [buffer (Unpooled/buffer)
                        line-bytes (map #(.getBytes ^String % "UTF-8") body)]
                    (doseq [line line-bytes]
-                     (.writeBytes ^ByteBuf buffer ^bytes line)))
+                     (.writeBytes ^ByteBuf buffer ^bytes line))
+                   buffer)
 
                  (instance? File body)
                  (let [buffer (Unpooled/buffer)
                        buffer-out (ByteBufOutputStream. buffer)
                        file-in (input-stream body)]
-                   (copy file-in buffer-out))
+                   (copy file-in buffer-out)
+                   buffer)
 
                  (instance? InputStream body)
                  (let [buffer (Unpooled/buffer)
                        buffer-out (ByteBufOutputStream. buffer)]
-                   (copy body buffer-out)))
+                   (copy body buffer-out)
+                   buffer))
 
         netty-response (DefaultFullHttpResponse.
                          HttpVersion/HTTP_1_1
                          (HttpResponseStatus/valueOf status)
                          content)
 
-        netty-headers (.trailingHeaders netty-response)]
+        netty-headers (.headers netty-response)]
 
     ;; write headers
     (doseq [header (or headers {})]
-      (.add netty-headers (key header) (val header)))
+      (.set netty-headers (key header) (val header)))
 
     (.add netty-headers HttpHeaders$Names/CONTENT_LENGTH (.readableBytes content))
 
@@ -100,11 +106,12 @@
 
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
-   (on-message [ch msg addr]
-               (let [req (ring-request ch msg addr)
+   (on-message [ch msg]
+               (let [req (ring-request ch msg)
                      resp (ring-fn req)]
                   (send ch (ring-response resp))))
    (on-error [ch exc]
+             (.printStackTrace exc)
              (let [resp-buf (Unpooled/buffer)
                    resp-out (ByteBufOutputStream. resp-buf)
                    resp (DefaultFullHttpResponse.
@@ -124,8 +131,9 @@
                            host "0.0.0.0"
                            max-request-body 1048576}}]
   (let [ring-handler (create-http-handler-from-ring ring-fn debug)
-        handlers [(HttpServerCodec.)
-                  (HttpObjectAggregator. max-request-body)
+        handlers [#(HttpRequestDecoder.)
+                  #(HttpObjectAggregator. max-request-body)
+                  #(HttpResponseEncoder.)
                   {:executor (if threads (new-executor threads))
                    :handler ring-handler}]]
     (tcp-server port handlers

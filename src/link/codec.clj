@@ -171,17 +171,19 @@
   ((:decoder codec) buffer))
 
 (defn netty-encoder [codec]
-  (proxy [MessageToByteEncoder] []
-    (encode [^ChannelHandlerContext ctx
-             msg
-             ^ByteBuf buf]
-      (encode* codec msg buf))))
+  (if codec
+    (proxy [MessageToByteEncoder] []
+      (encode [^ChannelHandlerContext ctx
+               msg
+               ^ByteBuf buf]
+        (encode* codec msg buf)))))
 
 (defn netty-decoder [codec]
-  (proxy [ByteToMessageDecoder]  []
-    (decode [ctx ^ByteBuf buf ^List out]
-      (.markReaderIndex buf)
-      (let [frame (decode* codec buf)]
-        (if frame
-          (.add out frame)
-          (.resetReaderIndex buf))))))
+  (if codec
+    (proxy [ByteToMessageDecoder]  []
+      (decode [ctx ^ByteBuf buf ^List out]
+        (.markReaderIndex buf)
+        (let [frame (decode* codec buf)]
+          (if frame
+            (.add out frame)
+            (.resetReaderIndex buf)))))))
