@@ -2,7 +2,6 @@
   (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
-  (:use [link.pool :only [pool]])
   (:import [java.net InetAddress]
            [java.util.concurrent Executors]
            [java.nio.channels ClosedChannelException]
@@ -128,20 +127,3 @@
     (let [connect-fn (fn [] (connect bootstrap addr))
           chref (agent (if-not lazy-connect (connect-fn)))]
       (ClientSocketChannel. chref connect-fn))))
-
-(defn tcp-client-pool [^ClientBootstrap bootstrap host port
-                       & {:keys [lazy-connect pool-options]
-                          :or {lazy-connect false
-                               pool-options {:max-active 8
-                                             :exhausted-policy :block
-                                             :max-wait -1}}}]
-  (let [addr (InetSocketAddress. ^String host ^Integer port)
-        maker (fn []
-                (let [conn-fn (fn [] (connect bootstrap addr))]
-                  (ClientSocketChannel.
-                   (agent (if-not lazy-connect (conn-fn)))
-                   conn-fn)))]
-    (pool pool-options
-          (makeObject [this] (maker))
-          (destroyObject [this client] (close client))
-          (validateObject [this client] (valid? client)))))
