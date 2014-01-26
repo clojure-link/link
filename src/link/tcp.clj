@@ -3,69 +3,96 @@
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:use [link.pool :only [pool]])
-  (:import [java.net InetSocketAddress]
+  (:import [java.net InetAddress]
            [java.util.concurrent Executors]
            [java.nio.channels ClosedChannelException]
            [javax.net.ssl SSLContext]
-           [org.jboss.netty.bootstrap ClientBootstrap ServerBootstrap]
-           [org.jboss.netty.channel Channels ChannelPipelineFactory Channel
-            ChannelHandlerContext ChannelFuture]
-           [org.jboss.netty.channel.socket.nio
-            NioServerSocketChannelFactory NioClientSocketChannelFactory]
-           [org.jboss.netty.handler.ssl SslHandler]
+           [io.netty.bootstrap ClientBootstrap ServerBootstrap]
+           [io.netty.channel ChannelInitializer Channel
+            ChannelHandlerContext ChannelFuture EventLoopGroup]
+           [io.netty.channel.nio NioEventLoopGroup]
+           [io.netty.channel.socket.nio
+            NioServerSocketChannel NioSocketChannel]
+           [io.netty.handler.ssl SslHandler]
            [link.core ClientSocketChannel]))
 
-(defn- create-pipeline [& handlers]
-  (reify ChannelPipelineFactory
-    (getPipeline [this]
-      (let [pipeline (Channels/pipeline)]
-        (dorun (map-indexed 
-                  #(.addLast pipeline (str "handler-" %1) %2) 
-                  handlers))
-        pipeline))))
+;; handler specs
+;; :handler the handler created by create-handler
+;; :executor the executor that handler will run on
+(defn- channel-init [handler-specs]
+  (proxy [ChannelInitializer] []
+    (initChannel [this ^Channel ch]
+      (let [pipeline (.pipeline ch)]
+        (doseq [hs handler-specs]
+          (if-not (:executor hs)
+            (if (map? hs)
+              (.addLast pipeline (:handler hs))
+              (.addLast pipeline hs))
+            (.addLast pipeline (:executor hs) (:handler hs))))))))
 
-(defn get-ssl-handler [context client-mode?]
+(defn ssl-handler [^SSLContext context client-mode?]
   (SslHandler. (doto (.createSSLEngine context)
                  (.setIssueHandshake true)
 		             (.setUseClientMode client-mode?))))
 
-(defn- start-tcp-server [port handler encoder decoder threaded?
-                         ordered tcp-options ssl-context]
-  (let [factory (NioServerSocketChannelFactory.
-                 (Executors/newCachedThreadPool)
-                 (Executors/newCachedThreadPool))
-        bootstrap (ServerBootstrap. factory)
-        handlers* (if-not threaded?
-                    [encoder decoder handler]
-                    [encoder decoder (threaded-handler ordered)
-                     handler])
+(defn- start-tcp-server [host port handlers encoder decoder
+                         tcp-options ssl-context]
+  (let [boss-group (NioEventLoopGroup.)
+        worker-group (NioEventLoopGroup.)
+        bootstrap (ServerBootstrap.)
+
+        handlers (if encoder
+                   (conj handlers encoder)
+                   handlers)
+        handlers (if decoder
+                   (conj handlers decoder)
+                   handlers)
         handlers (if ssl-context
-                   (concat [(get-ssl-handler ssl-context false)]
-                           handlers*)
-                   handlers*)
-        pipeline (apply create-pipeline handlers)]
-    (.setPipelineFactory bootstrap pipeline)
-    (.setOptions bootstrap tcp-options)
-    (.bind bootstrap (InetSocketAddress. port))))
+                   (conj handlers (ssl-handler ssl-handler))
+                   handlers)
+        channel-initializer (channel-init handlers)
+
+        tcp-options (group-by #(.startsWith (% 0) "child.") (into [] tcp-options))
+        parent-tcp-options (get tcp-options false)
+        child-tcp-options (map #(vector (subs (% 0) 6) (% 1)) (get tcp-options true))]
+    (doto bootstrap
+      (.group boss-group worker-group)
+      (.channel NioServerSocketChannel)
+      (.childHandler channel-initializer))
+    (doseq [op parent-tcp-options]
+      (.option bootstrap (op 0) (op 1)))
+    (doseq [op child-tcp-options]
+      (.childOption bootstrap (op 0) (op 1)))
+
+    (.sync (.bind bootstrap (InetAddress. host) port))
+    ;; return event loop groups so we can shutdown the server gracefully
+    [worker-group boss-group]))
 
 (defn tcp-server [port handler
                   & {:keys [encoder decoder codec threaded?
-                            ordered? tcp-options ssl-context]
+                            ordered? tcp-options ssl-context
+                            host]
                      :or {encoder nil
                           decoder nil
                           codec nil
                           threaded? false
                           ordered? true
                           tcp-options {}
-                          ssl-context nil}}]
+                          ssl-context nil
+                          host "0.0.0.0"}}]
   (let [encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))]
-    (start-tcp-server port handler
-                      encoder decoder
-                      threaded?
-                      ordered?
+    (start-tcp-server host
+                      port
+                      handler
+                      encoder
+                      decoder
                       tcp-options
                       ssl-context)))
+
+(defn stop-server [event-loop-groups]
+  (doseq [^EventLoopGroup el event-loop-groups]
+    (.shutdownGracefully el)))
 
 (defn tcp-client-factory [handler
                           & {:keys [encoder decoder codec tcp-options]
@@ -118,6 +145,3 @@
           (makeObject [this] (maker))
           (destroyObject [this client] (close client))
           (validateObject [this client] (valid? client)))))
-
-
-
