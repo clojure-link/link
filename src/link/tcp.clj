@@ -67,23 +67,22 @@
     ;; return event loop groups so we can shutdown the server gracefully
     [worker-group boss-group]))
 
-(defn tcp-server [port handler
-                  & {:keys [encoder decoder codec threaded?
-                            ordered? tcp-options ssl-context
+(defn tcp-server [port handlers
+                  & {:keys [encoder decoder codec
+                            tcp-options ssl-context
                             host]
                      :or {encoder nil
                           decoder nil
                           codec nil
-                          threaded? false
-                          ordered? true
                           tcp-options {}
                           ssl-context nil
                           host "0.0.0.0"}}]
-  (let [encoder (netty-encoder (or encoder codec))
+  (let [handlers (if (vector? handlers) handlers [handlers])
+        encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))]
     (start-tcp-server host
                       port
-                      handler
+                      handlers
                       encoder
                       decoder
                       tcp-options
