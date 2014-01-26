@@ -2,11 +2,11 @@
   (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
-  (:import [java.net InetAddress]
+  (:import [java.net InetAddress InetSocketAddress]
            [java.util.concurrent Executors]
            [java.nio.channels ClosedChannelException]
            [javax.net.ssl SSLContext]
-           [io.netty.bootstrap ClientBootstrap ServerBootstrap]
+           [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel
             ChannelHandlerContext ChannelFuture EventLoopGroup]
            [io.netty.channel.nio NioEventLoopGroup]
@@ -63,7 +63,7 @@
     (doseq [op child-tcp-options]
       (.childOption bootstrap (op 0) (op 1)))
 
-    (.sync (.bind bootstrap (InetAddress. host) port))
+    (.sync (.bind bootstrap (InetAddress/getByName host) port))
     ;; return event loop groups so we can shutdown the server gracefully
     [worker-group boss-group]))
 
@@ -90,37 +90,44 @@
                       ssl-context)))
 
 (defn stop-server [event-loop-groups]
-  (doseq [^EventLoopGroup el event-loop-groups]
-    (.shutdownGracefully el)))
+  (doseq [^EventLoopGroup elg event-loop-groups]
+    (.shutdownGracefully elg)))
 
-(defn tcp-client-factory [handler
+(defn tcp-client-factory [handlers
                           & {:keys [encoder decoder codec tcp-options]
                              :or {tcp-options {}}}]
-  (let [encoder (netty-encoder (or encoder codec))
+  (let [worker-group (NioEventLoopGroup.)
+        encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))
-        bootstrap (ClientBootstrap.
-                   (NioClientSocketChannelFactory.
-                    (Executors/newCachedThreadPool)
-                    (Executors/newCachedThreadPool)))
-        handlers [encoder decoder handler]
-        pipeline (apply create-pipeline handlers)]
-    (.setPipelineFactory bootstrap pipeline)
-    (.setOptions bootstrap tcp-options)
-    bootstrap))
+        bootstrap (Bootstrap.)
+        handlers (if encoder (conj handlers encoder) handlers)
+        handlers (if encoder (conj handlers decoder) handlers)
+        channel-initializer (channel-init handlers)
+        tcp-options (into [] tcp-options)]
 
-(defn- connect [^ClientBootstrap bootstrap addr]
-  (loop [chf (.. (.connect bootstrap addr)
-                 awaitUninterruptibly)
+    (doto bootstrap
+      (.group worker-group)
+      (.channel NioSocketChannel)
+      (.handler channel-initializer))
+    (doseq [op tcp-options]
+      (.option bootstrap (op 0) (op 1)))
+
+    [bootstrap worker-group]))
+
+(defn stop-clients [client-factory]
+  (let [^EventLoopGroup elg (client-factory 1)]
+    (.shutdownGracefully elg)))
+
+(defn- connect [^Bootstrap bootstrap addr]
+  (loop [chf (.. (.connect bootstrap addr) (.sync))
          interval 5000]
     (if (.isSuccess ^ChannelFuture chf)
-      (.getChannel ^ChannelFuture chf)
+      (.channel ^ChannelFuture chf)
       (do
         (Thread/sleep interval)
-        (recur (.. (.connect bootstrap addr)
-                   awaitUninterruptibly)
-               interval)))))
+        (recur (.. (.connect bootstrap addr) (.sync)) interval)))))
 
-(defn tcp-client [^ClientBootstrap bootstrap host port
+(defn tcp-client [^Bootstrap bootstrap host port
                   & {:keys [lazy-connect]
                      :or {lazy-connect false}}]
   (let [addr (InetSocketAddress. ^String host ^Integer port)]
