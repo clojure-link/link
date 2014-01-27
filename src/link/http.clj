@@ -1,6 +1,6 @@
 (ns link.http
   (:refer-clojure :exclude [send])
-  (:use [link core tcp threads])
+  (:use [link core tcp])
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
   (:import [java.io File InputStream PrintStream])
@@ -125,8 +125,8 @@
                (send ch resp)))))
 
 (defn http-server [port ring-fn
-                   & {:keys [threads debug host ssl-context max-request-body]
-                      :or {threads nil
+                   & {:keys [executor debug host ssl-context max-request-body]
+                      :or {executor nil
                            debug false
                            host "0.0.0.0"
                            max-request-body 1048576}}]
@@ -134,7 +134,7 @@
         handlers [#(HttpRequestDecoder.)
                   #(HttpObjectAggregator. max-request-body)
                   #(HttpResponseEncoder.)
-                  {:executor (if threads (new-executor threads))
+                  {:executor executor
                    :handler ring-handler}]]
     (tcp-server port handlers
                 :host host
