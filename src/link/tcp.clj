@@ -45,15 +45,16 @@
         worker-group (NioEventLoopGroup.)
         bootstrap (ServerBootstrap.)
 
-        handlers (if ssl-context
-                   (conj (seq handlers) (ssl-handler ssl-context false))
-                   handlers)
         handlers (if encoder
                    (conj (seq handlers) encoder)
                    handlers)
         handlers (if decoder
                    (conj (seq handlers) decoder)
                    handlers)
+        handlers (if ssl-context
+                   (conj (seq handlers) (ssl-handler ssl-context false))
+                   handlers)
+
         channel-initializer (channel-init handlers)
 
         options (group-by #(.startsWith (name (% 0)) "child.") (into [] options))
@@ -98,7 +99,7 @@
     (.shutdownGracefully elg)))
 
 (defn tcp-client-factory [handlers
-                          & {:keys [encoder decoder codec options]
+                          & {:keys [encoder decoder codec options ssl-context]
                              :or {options {}}}]
   (let [worker-group (NioEventLoopGroup.)
         encoder (netty-encoder (or encoder codec))
@@ -106,7 +107,11 @@
         bootstrap (Bootstrap.)
         handlers (if (vector? handlers) handlers [handlers])
         handlers (if encoder (conj (seq handlers) encoder) handlers)
-        handlers (if encoder (conj (seq handlers) decoder) handlers)
+        handlers (if decoder (conj (seq handlers) decoder) handlers)
+        handlers (if ssl-context
+                   (conj (seq handlers) (ssl-handler ssl-context true))
+                   handlers)
+
         channel-initializer (channel-init handlers)
         options (into [] options)]
 
