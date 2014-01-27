@@ -98,9 +98,11 @@
 
     ;; write headers
     (doseq [header (or headers {})]
-      (.set ^HttpHeaders netty-headers (key header) (val header)))
+      (.set ^HttpHeaders netty-headers ^String (key header) ^Object (val header)))
 
-    (.set ^HttpHeaders netty-headers HttpHeaders$Names/CONTENT_LENGTH (.readableBytes content))
+    (.set ^HttpHeaders netty-headers
+          ^String HttpHeaders$Names/CONTENT_LENGTH
+          ^Object (.readableBytes content))
 
     netty-response))
 
