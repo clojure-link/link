@@ -96,7 +96,7 @@
 
 (defn stop-server [event-loop-groups]
   (doseq [^EventLoopGroup elg event-loop-groups]
-    (.shutdownGracefully elg)))
+    (.sync (.shutdownGracefully elg))))
 
 (defn tcp-client-factory [handlers
                           & {:keys [encoder decoder codec options ssl-context]
@@ -126,7 +126,7 @@
 
 (defn stop-clients [client-factory]
   (let [^EventLoopGroup elg (client-factory 1)]
-    (.shutdownGracefully elg)))
+    (.sync (.shutdownGracefully elg))))
 
 (defn- connect [^Bootstrap bootstrap addr]
   (loop [chf (.. (.connect bootstrap addr) (sync))
