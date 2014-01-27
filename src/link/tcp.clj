@@ -45,14 +45,14 @@
         worker-group (NioEventLoopGroup.)
         bootstrap (ServerBootstrap.)
 
+        handlers (if ssl-context
+                   (conj (seq handlers) (ssl-handler ssl-context false))
+                   handlers)
         handlers (if encoder
-                   (conj handlers encoder)
+                   (conj (seq handlers) encoder)
                    handlers)
         handlers (if decoder
-                   (conj handlers decoder)
-                   handlers)
-        handlers (if ssl-context
-                   (conj handlers (ssl-handler ssl-context))
+                   (conj (seq handlers) decoder)
                    handlers)
         channel-initializer (channel-init handlers)
 
@@ -105,8 +105,8 @@
         decoder (netty-decoder (or decoder codec))
         bootstrap (Bootstrap.)
         handlers (if (vector? handlers) handlers [handlers])
-        handlers (if encoder (conj handlers encoder) handlers)
-        handlers (if encoder (conj handlers decoder) handlers)
+        handlers (if encoder (conj (seq handlers) encoder) handlers)
+        handlers (if encoder (conj (seq handlers) decoder) handlers)
         channel-initializer (channel-init handlers)
         options (into [] options)]
 
