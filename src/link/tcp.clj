@@ -104,6 +104,7 @@
         encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))
         bootstrap (Bootstrap.)
+        handlers (if (vector? handlers) handlers [handlers])
         handlers (if encoder (conj handlers encoder) handlers)
         handlers (if encoder (conj handlers decoder) handlers)
         channel-initializer (channel-init handlers)
