@@ -47,7 +47,7 @@
      :request-method (keyword (lower-case
                                (.. ^FullHttpRequest req getMethod name)))
      :content-type (HttpHeaders/getHeader
-                    req HttpHeaders$Names/CONTENT_TYPE)
+                    ^FullHttpRequest req HttpHeaders$Names/CONTENT_TYPE)
      :content-length (HttpHeaders/getContentLength req)
      :character-encoding (HttpHeaders/getHeader
                           req HttpHeaders$Names/CONTENT_ENCODING)
@@ -98,9 +98,9 @@
 
     ;; write headers
     (doseq [header (or headers {})]
-      (.set netty-headers (key header) (val header)))
+      (.set ^HttpHeaders netty-headers (key header) (val header)))
 
-    (.add netty-headers HttpHeaders$Names/CONTENT_LENGTH (.readableBytes content))
+    (.set ^HttpHeaders netty-headers HttpHeaders$Names/CONTENT_LENGTH (.readableBytes content))
 
     netty-response))
 

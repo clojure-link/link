@@ -3,15 +3,15 @@
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:import [java.net InetAddress InetSocketAddress]
-           [java.util.concurrent Executors]
            [javax.net.ssl SSLContext]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel ChannelHandler
-            ChannelHandlerContext ChannelFuture EventLoopGroup]
+            ChannelHandlerContext ChannelFuture EventLoopGroup ChannelPipeline]
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
            [io.netty.handler.ssl SslHandler]
+           [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
 ;; handler specs
@@ -21,15 +21,17 @@
 (defn- channel-init [handler-specs]
   (proxy [ChannelInitializer] []
     (initChannel [^Channel ch]
-      (let [pipeline (.pipeline ch)]
+      (let [pipeline ^ChannelPipeline (.pipeline ch)]
         (doseq [hs handler-specs]
           (if (map? hs)
             (let [h (if (fn? (:handler hs)) ((:handler hs)) (:handler hs))]
               (if-not (:executor hs)
-                (.addLast pipeline (into-array ChannelHandler [h]))
-                (.addLast pipeline (:executor hs) (h))))
+                (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))
+                (.addLast pipeline
+                          ^EventExecutorGroup (:executor hs)
+                          ^"[Lio.netty.channel.ChannelHandler;" (h))))
             (let [h (if (fn? hs) (hs) hs)]
-              (.addLast pipeline (into-array ChannelHandler [h])))))))))
+              (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
 (defn ssl-handler [^SSLContext context client-mode?]
   (SslHandler. (doto (.createSSLEngine context)
@@ -65,7 +67,7 @@
     (doseq [op child-tcp-options]
       (.childOption bootstrap (op 0) (op 1)))
 
-    (.sync (.bind bootstrap (InetAddress/getByName host) port))
+    (.sync ^ChannelFuture (.bind bootstrap (InetAddress/getByName host) port))
     ;; return event loop groups so we can shutdown the server gracefully
     [worker-group boss-group]))
 
