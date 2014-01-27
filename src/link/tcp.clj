@@ -30,7 +30,7 @@
                 (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))
                 (.addLast pipeline
                           ^EventExecutorGroup (:executor hs)
-                          ^"[Lio.netty.channel.ChannelHandler;" (h))))
+                          ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))))
             (let [h (if (fn? hs) (hs) hs)]
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
