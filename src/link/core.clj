@@ -1,14 +1,14 @@
 (ns link.core
   (:refer-clojure :exclude [send])
-  (:import [clojure.lang IDeref])
   (:import [java.net InetSocketAddress])
-  (:import [java.nio.channels ClosedChannelException])
   (:import [io.netty.channel
             Channel
             ChannelHandlerContext
-            SimpleChannelInboundHandler]))
+            SimpleChannelInboundHandler])
+  (:import [io.netty.channel.socket.nio NioSocketChannel]))
 
-(defprotocol MessageChannel
+
+(defprotocol LinkMessageChannel
   (send [this msg])
   (valid? [this])
   (channel-addr [this])
@@ -19,7 +19,7 @@
   (and ch (.isActive ch)))
 
 (deftype ClientSocketChannel [ch-agent factory-fn]
-  MessageChannel
+  LinkMessageChannel
   (send [this msg]
     (clojure.core/send ch-agent
                        (fn [ch]
@@ -39,18 +39,18 @@
   (valid? [this]
     (client-channel-valid? @ch-agent)))
 
-(deftype SimpleWrappedSocketChannel [^Channel ch]
-  MessageChannel
+(extend-protocol LinkMessageChannel
+  NioSocketChannel
   (send [this msg]
-    (.writeAndFlush ch msg))
+    (.writeAndFlush this msg))
   (channel-addr [this]
-    (.localAddress ch))
+    (.localAddress this))
   (remote-addr [this]
-    (.remoteAddress ch))
+    (.remoteAddress this))
   (close [this]
-    (.close ch))
+    (.close this))
   (valid? [this]
-    (and ch (.isActive ch))))
+    (.isActive this)))
 
 (defmacro ^{:private true} make-handler-macro [evt]
   (let [handler-name (str "on-" evt)
@@ -71,25 +71,23 @@
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-active handlers#)]
-           (handler# (SimpleWrappedSocketChannel. (.channel ctx#))))
+           (handler# (.channel ctx#)))
          (.fireChannelActive ctx#))
 
        (channelInactive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-inactive handlers#)]
-           (handler# (SimpleWrappedSocketChannel. (.channel ctx#))))
+           (handler# (.channel ctx#)))
          (.fireChannelInactive ctx#))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
          (if-let [handler# (:on-error handlers#)]
-           (let [ch# (SimpleWrappedSocketChannel. (.channel ctx#))]
-             (handler# ch# e#))
+           (handler# (.channel ctx#) e#)
            (.fireExceptionCaught  ctx# e#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (if-let [handler# (:on-message handlers#)]
-           (let [ch# (SimpleWrappedSocketChannel. (.channel ctx#))]
-             (handler# ch# msg#))
+           (handler# (.channel ctx#) msg#)
            (.fireChannelRead ctx# msg#))))))
 
 (defmacro create-handler [& body]
