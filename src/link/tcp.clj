@@ -128,10 +128,11 @@
         (Thread/sleep interval)
         (recur (.. (.connect bootstrap addr) (.sync)) interval)))))
 
-(defn tcp-client [^Bootstrap bootstrap host port
+(defn tcp-client [factory host port
                   & {:keys [lazy-connect]
                      :or {lazy-connect false}}]
-  (let [addr (InetSocketAddress. ^String host ^Integer port)]
+  (let [bootstrap (factory 0)
+        addr (InetSocketAddress. ^String host ^Integer port)]
     (let [connect-fn (fn [] (connect bootstrap addr))
           chref (agent (if-not lazy-connect (connect-fn)))]
       (ClientSocketChannel. chref connect-fn))))
