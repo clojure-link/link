@@ -1,5 +1,6 @@
 (ns link.core
   (:refer-clojure :exclude [send])
+  (:use [link.util :only [make-handler-macro]])
   (:import [java.net InetSocketAddress])
   (:import [io.netty.channel
             Channel
@@ -7,7 +8,6 @@
             ChannelOption
             SimpleChannelInboundHandler])
   (:import [io.netty.channel.socket.nio NioSocketChannel]))
-
 
 (defprotocol LinkMessageChannel
   (send [this msg])
@@ -52,14 +52,6 @@
     (.close this))
   (valid? [this]
     (.isActive this)))
-
-(defmacro ^{:private true} make-handler-macro [evt]
-  (let [handler-name (str "on-" evt)
-        symbol-name (symbol handler-name)
-        args-vec-sym (symbol "args-vec")
-        body-sym (symbol "body")]
-    `(defmacro ~symbol-name [~args-vec-sym & ~body-sym]
-       `{(keyword ~~handler-name) (fn ~~args-vec-sym ~@~body-sym)})))
 
 (make-handler-macro message)
 (make-handler-macro error)
