@@ -2,6 +2,10 @@
   (:refer-clojure :exclude [send])
   (:use [link tcp util])
   (:import [io.netty.buffer ByteBuf])
+  (:import [io.netty.handler.codec.http
+            HttpResponseEncoder
+            HttpRequestDecoder
+            HttpObjectAggregator])
   (:import [io.netty.handler.codec.http.websocketx
             WebSocketServerProtocolHandler
             TextWebSocketFrame
@@ -12,9 +16,12 @@
             ChannelHandlerContext
             SimpleChannelInboundHandler]))
 
-(defn websocket-codec [path]
+(defn websocket-codecs [path]
   ;; web socket handler is of course stateful
-  (fn [] (WebSocketServerProtocolHandler. path)))
+  [(fn [] (HttpRequestDecoder.))
+   (fn [] (HttpObjectAggregator. 65536))
+   (fn [] (HttpResponseEncoder.))
+   (fn [] (WebSocketServerProtocolHandler. path))])
 
 (defn text [^String s]
   (TextWebSocketFrame. s))
