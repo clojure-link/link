@@ -16,12 +16,14 @@
             ChannelHandlerContext
             SimpleChannelInboundHandler]))
 
-(defn websocket-codecs [path]
-  ;; web socket handler is of course stateful
-  [(fn [] (HttpRequestDecoder.))
-   (fn [] (HttpObjectAggregator. 65536))
-   (fn [] (HttpResponseEncoder.))
-   (fn [] (WebSocketServerProtocolHandler. path))])
+(defn websocket-codecs
+  ([path] (websocket-codecs path nil))
+  ([path subprotocols]
+     ;; web socket handler is of course stateful
+     [(fn [] (HttpRequestDecoder.))
+      (fn [] (HttpObjectAggregator. 65536))
+      (fn [] (HttpResponseEncoder.))
+      (fn [] (WebSocketServerProtocolHandler. path subprotocols))]))
 
 (defn text [^String s]
   (TextWebSocketFrame. s))
