@@ -43,20 +43,20 @@
 (make-handler-macro ping)
 (make-handler-macro pong)
 (make-handler-macro error)
-(make-handler-macro active)
-(make-handler-macro inactive)
+(make-handler-macro open)
+(make-handler-macro close)
 
 (defmacro create-handler1 [sharable & body]
   `(let [handlers# (merge ~@body)]
      (proxy [SimpleChannelInboundHandler] []
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
-         (when-let [handler# (:on-active handlers#)]
+         (when-let [handler# (:on-open handlers#)]
            (handler# (.channel ctx#)))
          (.fireChannelActive ctx#))
 
        (channelInactive [^ChannelHandlerContext ctx#]
-         (when-let [handler# (:on-inactive handlers#)]
+         (when-let [handler# (:on-close handlers#)]
            (handler# (.channel ctx#)))
          (.fireChannelInactive ctx#))
 
@@ -73,13 +73,13 @@
             ((:on-text handlers#) ch# (.text ^TextWebSocketFrame msg#))
 
             (and (instance? BinaryWebSocketFrame msg#) (:on-binary handlers#))
-            ((:on-binary handlers#) ch# (.nioBuffer ^ByteBuf (.content ^BinaryWebSocketFrame msg#)))
+            ((:on-binary handlers#) ch# (.content ^BinaryWebSocketFrame msg#))
 
             (and (instance? PingWebSocketFrame msg#) (:on-ping handlers#))
-            ((:on-ping handlers#) ch# (.nioBuffer ^ByteBuf (.content ^PingWebSocketFrame msg#)))
+            ((:on-ping handlers#) ch# (.content ^PingWebSocketFrame msg#))
 
             (and (instance? PongWebSocketFrame msg#) (:on-pong handlers#))
-            ((:on-pong handlers#) ch# (.nioBuffer ^ByteBuf (.content ^PongWebSocketFrame msg#)))
+            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))
 
             :else (.fireChannelRead ctx# msg#)))))))
 
