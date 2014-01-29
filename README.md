@@ -7,7 +7,7 @@ link is the event-driven network library used by
 
 ### Leiningen
 
-[[https://clojars.org/link][https://clojars.org/link/latest-version.svg]]
+![https://clojars.org/link](https://clojars.org/link/latest-version.svg)
 
 Currently, link only works on the JVM implementation of Clojure. We
 might support nodejs in future.
