@@ -2,11 +2,11 @@
   (:refer-clojure :exclude [byte float double])
   (:use [clojure.test])
   (:use [link.codec])
-  (:import [org.jboss.netty.buffer ChannelBuffers]))
+  (:import [io.netty.buffer Unpooled]))
 
 (deftest test-codecs
   (are [data codec]
-       (let [buffer (ChannelBuffers/buffer 256)]
+       (let [buffer (Unpooled/buffer 256)]
          (is (= data (decode* codec (encode* codec data buffer)))))
 
        1 (byte)
@@ -34,13 +34,10 @@
                                     (string :prefix (int32) :encoding :ascii))))
 
 (deftest test-nil-results
-  (let [buffer (ChannelBuffers/dynamicBuffer)
+  (let [buffer (Unpooled/buffer)
         codec (string :prefix (int32) :encoding :utf-8)]
     (.writeInt buffer 50)
-    (.writeBytes buffer (.getBytes "Hello World" "UTF-8")) 
+    (.writeBytes buffer (.getBytes "Hello World" "UTF-8"))
 
 
     (is (nil? (decode* codec buffer)))))
-
-
-

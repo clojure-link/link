@@ -1,9 +1,10 @@
 (defproject link "0.5.0-SNAPSHOT"
   :description "A straightforward (not-so-clojure) clojure wrapper for java nio framework"
-  :url "http://github.com/sunng87/radar"
-  :license {:name "Eclipse Public License"
+  :url "http://github.com/sunng87/link"
+  :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.4.0"]
-                 [io.netty/netty "3.6.2.Final"]
-                 [commons-pool "1.6"]])
-
+  :dependencies [[org.clojure/clojure "1.5.1"]
+                 [io.netty/netty-all "4.0.15.Final"]]
+  :scm {:name "git"
+        :url "http://github.com/sunng87/link"}
+  :global-vars {*warn-on-reflection* true})

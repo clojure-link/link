@@ -1,19 +1,15 @@
 (ns link.core
   (:refer-clojure :exclude [send])
-  (:import [clojure.lang IDeref]
-           [java.net InetSocketAddress]
-           [java.nio.channels ClosedChannelException]
-           [org.jboss.netty.bootstrap ServerBootstrap ClientBootstrap]
-           [org.jboss.netty.channel Channel ChannelHandlerContext MessageEvent
-            ExceptionEvent WriteCompletionEvent SimpleChannelUpstreamHandler]
-           [org.jboss.netty.handler.execution ExecutionHandler
-            MemoryAwareThreadPoolExecutor OrderedMemoryAwareThreadPoolExecutor]))
+  (:use [link.util :only [make-handler-macro]])
+  (:import [java.net InetSocketAddress])
+  (:import [io.netty.channel
+            Channel
+            ChannelHandlerContext
+            ChannelOption
+            SimpleChannelInboundHandler])
+  (:import [io.netty.channel.socket.nio NioSocketChannel]))
 
-(defrecord Server [#^ServerBootstrap bootstrap channel])
-
-(defrecord Client [#^ClientBootstrap bootstrap])
-
-(defprotocol MessageChannel
+(defprotocol LinkMessageChannel
   (send [this msg])
   (valid? [this])
   (channel-addr [this])
@@ -21,24 +17,21 @@
   (close [this]))
 
 (defn- client-channel-valid? [^Channel ch]
-  (and (not (nil? ch))
-       (.isOpen ch)
-       (.isBound ch)
-       (.isConnected ch)))
+  (and ch (.isActive ch)))
 
 (deftype ClientSocketChannel [ch-agent factory-fn]
-  MessageChannel
+  LinkMessageChannel
   (send [this msg]
     (clojure.core/send ch-agent
                        (fn [ch]
                          (let [valid (client-channel-valid? ch)
                                ch- (if valid ch (factory-fn))]
-                           (.write ^Channel ch- msg)
+                           (.writeAndFlush ^Channel ch- msg)
                            ch-))))
   (channel-addr [this]
-    (.getLocalAddress ^Channel @ch-agent))
+    (.localAddress ^Channel @ch-agent))
   (remote-addr [this]
-    (.getRemoteAddress ^Channel @ch-agent))
+    (.remoteAddress ^Channel @ch-agent))
   (close [this]
     (clojure.core/send ch-agent
                        (fn [ch]
@@ -47,90 +40,84 @@
   (valid? [this]
     (client-channel-valid? @ch-agent)))
 
-(deftype SimpleWrappedSocketChannel [^Channel ch]
-  MessageChannel
+(extend-protocol LinkMessageChannel
+  NioSocketChannel
   (send [this msg]
-    (.write ch msg))
+    (.writeAndFlush this msg))
   (channel-addr [this]
-    (.getLocalAddress ch))
+    (.localAddress this))
   (remote-addr [this]
-    (.getRemoteAddress ch))
+    (.remoteAddress this))
   (close [this]
-    (.close ch))
+    (.close this))
   (valid? [this]
-    (and (not (nil? ch)) (.isOpen ch) (.isBound ch))))
+    (.isActive this)))
 
-(defmacro ^{:private true} make-handler-macro [evt]
-  (let [handler-name (str "on-" evt)
-        symbol-name (symbol handler-name)
-        args-vec-sym (symbol "args-vec")
-        body-sym (symbol "body")]
-    `(defmacro ~symbol-name [~args-vec-sym & ~body-sym]
-       `{(keyword ~~handler-name) (fn ~~args-vec-sym ~@~body-sym)})))
-
-(make-handler-macro open)
-(make-handler-macro close)
 (make-handler-macro message)
 (make-handler-macro error)
-(make-handler-macro connected)
-(make-handler-macro disconnected)
-(make-handler-macro write-complete)
+(make-handler-macro active)
+(make-handler-macro inactive)
+
+(defmacro create-handler0 [sharable & body]
+  `(let [handlers# (merge ~@body)]
+     (proxy [SimpleChannelInboundHandler] []
+       (isSharable [] ~sharable)
+       (channelActive [^ChannelHandlerContext ctx#]
+         (when-let [handler# (:on-active handlers#)]
+           (handler# (.channel ctx#)))
+         (.fireChannelActive ctx#))
+
+       (channelInactive [^ChannelHandlerContext ctx#]
+         (when-let [handler# (:on-inactive handlers#)]
+           (handler# (.channel ctx#)))
+         (.fireChannelInactive ctx#))
+
+       (exceptionCaught [^ChannelHandlerContext ctx#
+                         ^Throwable e#]
+         (if-let [handler# (:on-error handlers#)]
+           (handler# (.channel ctx#) e#)
+           (.fireExceptionCaught  ctx# e#)))
+
+       (channelRead0 [^ChannelHandlerContext ctx# msg#]
+         (if-let [handler# (:on-message handlers#)]
+           (handler# (.channel ctx#) msg#)
+           (.fireChannelRead ctx# msg#))))))
 
 (defmacro create-handler [& body]
-  `(let [handlers# (merge ~@body)]
-     (proxy [SimpleChannelUpstreamHandler] []
-       (channelClosed [^ChannelHandlerContext ctx# e#]
-         (if-let [handler# (:on-close handlers#)]
-           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
-           (.sendUpstream ctx# e#)))
-       (channelConnected [^ChannelHandlerContext ctx# e#]
-         (if-let [handler# (:on-connected handlers#)]
-           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
-           (.sendUpstream ctx# e#)))
-       (channelDisconnected [^ChannelHandlerContext ctx# e#]
-         (if-let [handler# (:on-disconnected handlers#)]
-           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
-           (.sendUpstream ctx# e#)))
-       (channelOpen [^ChannelHandlerContext ctx# e#]
-         (if-let [handler# (:on-open handlers#)]
-           (handler# (SimpleWrappedSocketChannel. (.getChannel ctx#)))
-           (.sendUpstream ctx# e#)))
-       
-       (exceptionCaught [^ChannelHandlerContext ctx#
-                         ^ExceptionEvent e#]
-         (when-let [handler# (:on-error handlers#)]
-           (let [ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))
-                 exp# (.getCause e#)]
-             (handler# ch# exp#)))
-         (.sendUpstream  ctx# e#))
-       
-       (messageReceived [^ChannelHandlerContext ctx#
-                         ^MessageEvent e#]
-         (when-let [handler# (:on-message handlers#)]
-           (let [message# (.getMessage e#)
-                 addr# (.getRemoteAddress e#)
-                 ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))]
-             (handler# ch# message# addr#)))
-         (.sendUpstream ctx# e#))
+  `(create-handler0 true ~@body))
 
-       (writeComplete [^ChannelHandlerContext ctx#
-                       ^WriteCompletionEvent e#]
-         (when-let [handler# (:on-write-complete handlers#)]
-           (let [amount# (.getWrittenAmount e#)
-                 ch# (SimpleWrappedSocketChannel. (.getChannel ctx#))]
-             (handler# ch# amount#)))
-         (.sendUpstream ctx# e#)))))
+(defmacro create-stateful-handler [& body]
+  `(fn [] (create-handler0 false ~@body)))
 
-(defn threaded-handler [ordered]
-  (let [core-size 20
-        max-channel-memory 0 ;;unlimited
-        max-total-memory 0 ;;unlimited
-        ]
-   (ExecutionHandler.
-    (if ordered
-      (OrderedMemoryAwareThreadPoolExecutor.
-       core-size max-channel-memory max-total-memory)
-      (MemoryAwareThreadPoolExecutor.
-       core-size max-channel-memory max-total-memory)))))
+(def channel-option
+  {
+   :allocator ChannelOption/ALLOCATOR
+   :rcvbuf-allocator ChannelOption/RCVBUF_ALLOCATOR
+   :message-size-estimator ChannelOption/MESSAGE_SIZE_ESTIMATOR
 
+   :connect-timeout-millis ChannelOption/CONNECT_TIMEOUT_MILLIS
+   :max-messages-per-read ChannelOption/MAX_MESSAGES_PER_READ
+   :write-spin-count ChannelOption/WRITE_SPIN_COUNT
+   :write-buffer-high-water-mark ChannelOption/WRITE_BUFFER_HIGH_WATER_MARK
+   :write-buffer-low-water-mark ChannelOption/WRITE_BUFFER_LOW_WATER_MARK
 
+   :allow-half-closure ChannelOption/ALLOW_HALF_CLOSURE
+   :auto-read ChannelOption/AUTO_READ
+
+   :so-broadcast ChannelOption/SO_BROADCAST
+   :so-keepalive ChannelOption/SO_KEEPALIVE
+   :so-sndbuf ChannelOption/SO_SNDBUF
+   :so-rcvbuf ChannelOption/SO_RCVBUF
+   :so-reuseaddr ChannelOption/SO_REUSEADDR
+   :so-linger ChannelOption/SO_LINGER
+   :so-backlog ChannelOption/SO_BACKLOG
+   :so-timeout ChannelOption/SO_TIMEOUT
+
+   :ip-tos ChannelOption/IP_TOS
+   :ip-multicast-addr ChannelOption/IP_MULTICAST_ADDR
+   :ip-multicast-if ChannelOption/IP_MULTICAST_IF
+   :ip-multicast-ttl ChannelOption/IP_MULTICAST_TTL
+   :ip-multicast-loop-disabled ChannelOption/IP_MULTICAST_LOOP_DISABLED
+
+   :tcp-nodelay ChannelOption/TCP_NODELAY
+   })

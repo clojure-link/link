@@ -7,3 +7,6 @@
 /checkouts
 /.lein-deps-sum
 target
+.lein-env
+.nrepl-port
+.lein*
