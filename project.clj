@@ -1,5 +1,5 @@
-(defproject link "0.5.0-SNAPSHOT"
-  :description "A straightforward (not-so-clojure) clojure wrapper for java nio framework"
+(defproject link "0.5.0"
+  :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
