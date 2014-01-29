@@ -137,7 +137,7 @@ To close a client, call `close` on the channel. To close a client
 factory, call `stop-clients` would work.
 
 
-### HTTP Server
+#### HTTP Server
 
 link also comes with an HTTP server. Since link is a clojure library,
 it accepts a ring function, so you can use any HTTP framework on link
@@ -150,7 +150,7 @@ http server, without pain.
              :executor ... ;; the thread pool to run ring functions on)
 ```
 
-### Websocket
+#### Websocket
 
 New in link 0.5. You can start a websocket server with link.
 
