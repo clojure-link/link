@@ -1,7 +1,6 @@
 (ns link.core
   (:refer-clojure :exclude [send])
   (:use [link.util :only [make-handler-macro]])
-  (:import [java.net InetSocketAddress])
   (:import [io.netty.channel
             Channel
             ChannelHandlerContext
@@ -10,6 +9,7 @@
   (:import [io.netty.channel.socket.nio NioSocketChannel]))
 
 (defprotocol LinkMessageChannel
+  (id [this])
   (send [this msg])
   (valid? [this])
   (channel-addr [this])
@@ -19,8 +19,13 @@
 (defn- client-channel-valid? [^Channel ch]
   (and ch (.isActive ch)))
 
+(defn- channel-id [^Channel ch]
+  (str (.localAddress ch) "->" (.remoteAddress ch)))
+
 (deftype ClientSocketChannel [ch-agent factory-fn]
   LinkMessageChannel
+  (id [this]
+    (channel-id @ch-agent))
   (send [this msg]
     (clojure.core/send ch-agent
                        (fn [ch]
@@ -42,6 +47,8 @@
 
 (extend-protocol LinkMessageChannel
   NioSocketChannel
+  (id [this]
+    (channel-id this))
   (send [this msg]
     (.writeAndFlush this msg))
   (channel-addr [this]
