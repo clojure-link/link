@@ -1,7 +1,7 @@
 (ns link.websocket
   (:refer-clojure :exclude [send])
   (:use [link tcp util])
-  (:import [io.netty.buffer ByteBuf])
+  (:import [io.netty.buffer ByteBuf Unpooled])
   (:import [io.netty.handler.codec.http
             HttpResponseEncoder
             HttpRequestDecoder
@@ -31,11 +31,13 @@
 (defn binary [^ByteBuf bytes]
   (BinaryWebSocketFrame. bytes))
 
-(defn ping [^ByteBuf payload]
-  (PingWebSocketFrame. payload))
+(defn ping
+  ([] (ping (Unpooled/buffer 0)))
+  ([^ByteBuf payload] (PingWebSocketFrame. payload)))
 
-(defn pong [^ByteBuf payload]
-  (PongWebSocketFrame. payload))
+(defn pong
+  ([] (pong (Unpooled/buffer 0)))
+  ([^ByteBuf payload] (PongWebSocketFrame. payload)))
 
 ;; make message receive handler
 (make-handler-macro text)
