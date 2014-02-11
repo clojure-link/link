@@ -1,4 +1,4 @@
-(defproject link "0.5.2"
+(defproject link "0.5.3"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
