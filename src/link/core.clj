@@ -3,14 +3,17 @@
   (:use [link.util :only [make-handler-macro]])
   (:import [io.netty.channel
             Channel
+            ChannelFuture
             ChannelHandlerContext
             ChannelOption
             SimpleChannelInboundHandler])
-  (:import [io.netty.channel.socket.nio NioSocketChannel]))
+  (:import [io.netty.channel.socket.nio NioSocketChannel])
+  (:import [io.netty.util.concurrent GenericFutureListener]))
 
 (defprotocol LinkMessageChannel
   (id [this])
   (send [this msg])
+  (send* [this msg cb])
   (valid? [this])
   (channel-addr [this])
   (remote-addr [this])
@@ -27,11 +30,17 @@
   (id [this]
     (channel-id @ch-agent))
   (send [this msg]
+    (send* this msg nil))
+  (send* [this msg cb]
     (clojure.core/send ch-agent
                        (fn [ch]
                          (let [valid (client-channel-valid? ch)
-                               ch- (if valid ch (factory-fn))]
-                           (.writeAndFlush ^Channel ch- msg)
+                               ch- (if valid ch (factory-fn))
+                               cf (.writeAndFlush ^Channel ch- msg)]
+                           (when cb
+                             (.addListener ^ChannelFuture cf (reify GenericFutureListener
+                                                               (operationComplete [this f]
+                                                                 (cb f)))))
                            ch-))))
   (channel-addr [this]
     (.localAddress ^Channel @ch-agent))
@@ -50,7 +59,12 @@
   (id [this]
     (channel-id this))
   (send [this msg]
-    (.writeAndFlush this msg))
+    (send* this msg nil))
+  (send* [this msg cb]
+    (let [cf (.writeAndFlush this msg)]
+      (when cb
+        (.addListener ^ChannelFuture cf (reify GenericFutureListener
+                                          (operationComplete [this f] (cb f)))))))
   (channel-addr [this]
     (.localAddress this))
   (remote-addr [this]
