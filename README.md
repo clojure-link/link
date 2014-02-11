@@ -158,19 +158,21 @@ Create a websocket handler:
 
 ```clojure
 (use 'link.websocket)
+(use 'link.tcp)
 
 (def ws-echo-handler
-  (on-open [ch])
-  (on-close [ch])
-  (on-text [ch string]
-    ;; you can use (text), (binary), (ping), (pong) to generate
-    ;; different types of response
-    (send ch (text string)))
-  (on-binary [ch ^ByteBuf bytes])
-  (on-ping [ch ^ByteBuf bytes])
-  (on-pong [ch ^ByteBuf bytes]))
+  (create-handler
+    (on-open [ch])
+    (on-close [ch])
+    (on-text [ch string]
+      ;; you can use (text), (binary), (ping), (pong) to generate
+      ;; different types of response
+      (send ch (text string)))
+    (on-binary [ch ^ByteBuf bytes])
+    (on-ping [ch ^ByteBuf bytes])
+    (on-pong [ch ^ByteBuf bytes])))
 
-(tcp-server 8082 (conj (websocket-codecs "/chat") ws-handler))
+(tcp-server 8082 (conj (websocket-codecs "/chat") ws-echo-handler))
 
 ```
 
