@@ -1,6 +1,7 @@
 (ns link.websocket
   (:refer-clojure :exclude [send])
   (:use [link tcp util])
+  (:import [java.util List])
   (:import [io.netty.buffer ByteBuf Unpooled])
   (:import [io.netty.handler.codec.http
             HttpResponseEncoder
@@ -8,13 +9,31 @@
             HttpObjectAggregator])
   (:import [io.netty.handler.codec.http.websocketx
             WebSocketServerProtocolHandler
+            WebSocketFrame
             TextWebSocketFrame
             BinaryWebSocketFrame
             PingWebSocketFrame
-            PongWebSocketFrame])
+            PongWebSocketFrame
+            CloseWebSocketFrame
+            WebSocketServerHandshaker])
   (:import [io.netty.channel
             ChannelHandlerContext
             SimpleChannelInboundHandler]))
+
+(defn server-protocol-handler
+  "A server protocol handler that let user to process ping/pong"
+  [path subprotocols]
+  (proxy [WebSocketServerProtocolHandler]
+      [path subprotocols]
+    (decode [^ChannelHandlerContext ctx
+             ^WebSocketFrame frame
+             ^List out]
+      (if (instance? CloseWebSocketFrame frame)
+        (let [handshaker (proxy-super getHandshaker ctx)]
+          (.retain frame)
+          (.close ^WebSocketServerHandshaker handshaker
+                  (.channel ctx) frame))
+        (.add out (.retain frame))))))
 
 (defn websocket-codecs
   ([path] (websocket-codecs path nil))
@@ -23,7 +42,7 @@
      [(fn [] (HttpRequestDecoder.))
       (fn [] (HttpObjectAggregator. 65536))
       (fn [] (HttpResponseEncoder.))
-      (fn [] (WebSocketServerProtocolHandler. path subprotocols))]))
+      (fn [] (server-protocol-handler path subprotocols))]))
 
 (defn text [^String s]
   (TextWebSocketFrame. s))

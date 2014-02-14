@@ -97,7 +97,7 @@
                          ^Throwable e#]
          (if-let [handler# (:on-error handlers#)]
            (handler# (.channel ctx#) e#)
-           (.fireExceptionCaught  ctx# e#)))
+           (.fireExceptionCaught ctx# e#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (if-let [handler# (:on-message handlers#)]
