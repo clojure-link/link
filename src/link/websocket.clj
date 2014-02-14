@@ -96,8 +96,10 @@
             (and (instance? BinaryWebSocketFrame msg#) (:on-binary handlers#))
             ((:on-binary handlers#) ch# (.content ^BinaryWebSocketFrame msg#))
 
-            (and (instance? PingWebSocketFrame msg#) (:on-ping handlers#))
-            ((:on-ping handlers#) ch# (.content ^PingWebSocketFrame msg#))
+            (instance? PingWebSocketFrame msg#)
+            (if (:on-ping handlers#)
+              ((:on-ping handlers#) ch# (.content ^PingWebSocketFrame msg#))
+              (.writeAndFlush ch# (pong (.content ^PongWebSocketFrame msg#))))
 
             (and (instance? PongWebSocketFrame msg#) (:on-pong handlers#))
             ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))
