@@ -35,12 +35,15 @@
     (clojure.core/send ch-agent
                        (fn [ch]
                          (let [valid (client-channel-valid? ch)
-                               ch- (if valid ch (factory-fn))
-                               cf (.writeAndFlush ^Channel ch- msg)]
-                           (when cb
-                             (.addListener ^ChannelFuture cf (reify GenericFutureListener
-                                                               (operationComplete [this f]
-                                                                 (cb f)))))
+                               ch- (if valid ch (try (factory-fn)
+                                                     (catch Exception e ch)))
+                               cf (if (client-channel-valid? ch-)
+                                    (.writeAndFlush ^Channel ch- msg))]
+                           (when (and cf cb)
+                             (.addListener ^ChannelFuture cf
+                                           (reify GenericFutureListener
+                                             (operationComplete [this f]
+                                               (cb f)))))
                            ch-))))
   (channel-addr [this]
     (.localAddress ^Channel @ch-agent))
