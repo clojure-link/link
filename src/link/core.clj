@@ -34,9 +34,10 @@
   (send* [this msg cb]
     (clojure.core/send ch-agent
                        (fn [ch]
-                         (let [valid (client-channel-valid? ch)
-                               ch- (if valid ch (try (factory-fn)
-                                                     (catch Exception e ch)))
+                         (let [ch- (if (client-channel-valid? ch)
+                                     ch
+                                     (try (factory-fn)
+                                          (catch Exception e ch)))
                                cf (if (client-channel-valid? ch-)
                                     (.writeAndFlush ^Channel ch- msg))]
                            (when (and cf cb)
