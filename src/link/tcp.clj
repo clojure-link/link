@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
-  (:import [java.net InetAddress InetSocketAddress]
+  (:import [java.net InetAddress InetSocketAddress ConnectException]
            [javax.net.ssl SSLContext]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel ChannelHandler
@@ -129,13 +129,17 @@
     (.sync (.shutdownGracefully elg))))
 
 (defn- connect [^Bootstrap bootstrap addr]
-  (loop [chf (.. (.connect bootstrap addr) (sync))
-         interval 5000]
-    (if (.isSuccess ^ChannelFuture chf)
-      (.channel ^ChannelFuture chf)
-      (do
-        (Thread/sleep interval)
-        (recur (.. (.connect bootstrap addr) (sync)) interval)))))
+  (loop [interval 1000]
+    (let [chf (try
+                (.sync ^ChannelFuture
+                       (.connect bootstrap addr))
+                (catch ConnectException e
+                  nil))]
+      (if (and chf (.isSuccess ^ChannelFuture chf))
+        (.channel ^ChannelFuture chf)
+        (do
+          (Thread/sleep interval)
+          (recur (* 2 interval)))))))
 
 (defn tcp-client [factory host port
                   & {:keys [lazy-connect]
