@@ -32,19 +32,18 @@
   (send [this msg]
     (send* this msg nil))
   (send* [this msg cb]
-    (clojure.core/send ch-agent
-                       (fn [ch]
-                         (let [ch- (if (client-channel-valid? ch)
-                                     ch
-                                     (try (factory-fn)
-                                          (catch Exception e ch)))
-                               cf (if (client-channel-valid? ch-)
-                                    (.writeAndFlush ^Channel ch- msg))]
-                           (when (and cf cb)
-                             (.addListener ^ChannelFuture cf
-                                           (reify GenericFutureListener
-                                             (operationComplete [this f]
-                                               (cb f)))))
+    (clojure.core/send-off ch-agent
+                           (fn [ch]
+                             (let [ch- (if (client-channel-valid? ch)
+                                         ch
+                                         (factory-fn))
+                                   cf (if (client-channel-valid? ch-)
+                                        (.writeAndFlush ^Channel ch- msg))]
+                               (when (and cf cb)
+                                 (.addListener ^ChannelFuture cf
+                                               (reify GenericFutureListener
+                                                 (operationComplete [this f]
+                                                   (cb f)))))
                            ch-))))
   (channel-addr [this]
     (.localAddress ^Channel @ch-agent))
