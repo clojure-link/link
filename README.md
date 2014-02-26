@@ -1,7 +1,10 @@
 # link
 
 link is the event-driven network library used by
-[slacker](https://github.com/sunng87/slacker). It's a thin wrapper of Netty.
+[slacker](https://github.com/sunng87/slacker). It's a thin wrapper of
+Netty.
+
+[![Build Status](https://travis-ci.org/sunng87/link.png?branch=master)](https://travis-ci.org/sunng87/link)
 
 ## Usage
 
