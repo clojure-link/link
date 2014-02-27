@@ -37,7 +37,8 @@
                              (let [ch- (if (client-channel-valid? ch)
                                          ch
                                          (do
-                                           (.close ^Channel ch)
+                                           (when ch
+                                             (.close ^Channel ch))
                                            (factory-fn)))
                                    cf (if (client-channel-valid? ch-)
                                         (.writeAndFlush ^Channel ch- msg))]
