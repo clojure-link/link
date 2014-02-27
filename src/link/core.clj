@@ -36,7 +36,9 @@
                            (fn [ch]
                              (let [ch- (if (client-channel-valid? ch)
                                          ch
-                                         (factory-fn))
+                                         (do
+                                           (.close ^Channel ch)
+                                           (factory-fn)))
                                    cf (if (client-channel-valid? ch-)
                                         (.writeAndFlush ^Channel ch- msg))]
                                (when (and cf cb)
@@ -50,10 +52,9 @@
   (remote-addr [this]
     (.remoteAddress ^Channel @ch-agent))
   (close [this]
-    (clojure.core/send ch-agent
-                       (fn [ch]
-                         (.close ^Channel ch)))
-    (await ch-agent))
+    (when @ch-agent
+      (.close ^Channel @ch-agent))
+    (restart-agent ch-agent nil :clear-actions true))
   (valid? [this]
     (client-channel-valid? @ch-agent)))
 
