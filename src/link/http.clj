@@ -129,7 +129,7 @@
 (defn http-server [port ring-fn
                    & {:keys [threads executor debug host
                              ssl-context max-request-body]
-                      :or {threads 0
+                      :or {threads nil
                            executor nil
                            debug false
                            host "0.0.0.0"
