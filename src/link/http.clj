@@ -93,9 +93,9 @@
                    buffer))
 
         netty-response (DefaultFullHttpResponse.
-                        HttpVersion/HTTP_1_1
-                        (HttpResponseStatus/valueOf status)
-                        content)
+                         HttpVersion/HTTP_1_1
+                         (HttpResponseStatus/valueOf status)
+                         content)
 
         netty-headers (.headers netty-response)]
 
@@ -113,9 +113,9 @@
   (let [resp-buf (Unpooled/buffer)
         resp-out (ByteBufOutputStream. resp-buf)
         resp (DefaultFullHttpResponse.
-              HttpVersion/HTTP_1_1
-              HttpResponseStatus/INTERNAL_SERVER_ERROR
-              resp-buf)]
+               HttpVersion/HTTP_1_1
+               HttpResponseStatus/INTERNAL_SERVER_ERROR
+               resp-buf)]
     (if debug
       (.printStackTrace exc (PrintStream. resp-out))
       (.writeBytes resp-buf (.getBytes "Internal Error" "UTF-8")))
@@ -128,7 +128,7 @@
 (extend-protocol ResponseHandle
   APersistentMap
   (http-handle [resp ch _]
-               (send ch (ring-response resp))))
+    (send ch (ring-response resp))))
 
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
