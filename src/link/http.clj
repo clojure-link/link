@@ -21,7 +21,9 @@
             HttpObjectAggregator
             HttpResponseEncoder
             HttpResponseStatus
-            DefaultFullHttpResponse]))
+            DefaultFullHttpResponse])
+  (:import [clojure.lang APersistentMap]))
+
 
 (defn- as-map [headers]
   (apply hash-map
@@ -91,9 +93,9 @@
                    buffer))
 
         netty-response (DefaultFullHttpResponse.
-                         HttpVersion/HTTP_1_1
-                         (HttpResponseStatus/valueOf status)
-                         content)
+                        HttpVersion/HTTP_1_1
+                        (HttpResponseStatus/valueOf status)
+                        content)
 
         netty-headers (.headers netty-response)]
 
@@ -107,24 +109,36 @@
 
     netty-response))
 
+(defn http-on-error [ch exc debug]
+  (let [resp-buf (Unpooled/buffer)
+        resp-out (ByteBufOutputStream. resp-buf)
+        resp (DefaultFullHttpResponse.
+              HttpVersion/HTTP_1_1
+              HttpResponseStatus/INTERNAL_SERVER_ERROR
+              resp-buf)]
+    (if debug
+      (.printStackTrace exc (PrintStream. resp-out))
+      (.writeBytes resp-buf (.getBytes "Internal Error" "UTF-8")))
+    (send ch resp)
+    (close ch)))
+
+(defprotocol ResponseHandle
+  (http-handle [req resp ch]))
+
+(extend-protocol ResponseHandle
+  APersistentMap
+  (http-handle [resp ch _]
+               (send ch (ring-response resp))))
+
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
    (on-message [ch msg]
                (let [req (ring-request ch msg)
                      resp (ring-fn req)]
-                  (send ch (ring-response resp))))
-   (on-error [ch exc]
-             (let [resp-buf (Unpooled/buffer)
-                   resp-out (ByteBufOutputStream. resp-buf)
-                   resp (DefaultFullHttpResponse.
-                          HttpVersion/HTTP_1_1
-                          HttpResponseStatus/INTERNAL_SERVER_ERROR
-                          resp-buf)]
-               (if debug
-                 (.printStackTrace exc (PrintStream. resp-out))
-                 (.writeBytes resp-buf (.getBytes "Internal Error" "UTF-8")))
+                 (http-handle resp ch req)))
 
-               (send ch resp)))))
+   (on-error [ch exc]
+             (http-on-error ch exc debug))))
 
 (defn http-server [port ring-fn
                    & {:keys [threads executor debug host
