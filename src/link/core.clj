@@ -47,15 +47,14 @@
                                                (reify GenericFutureListener
                                                  (operationComplete [this f]
                                                    (cb f)))))
-                           ch-))))
+                               ch-))))
   (channel-addr [this]
     (.localAddress ^Channel @ch-agent))
   (remote-addr [this]
     (.remoteAddress ^Channel @ch-agent))
   (close [this]
     (when @ch-agent
-      (.close ^Channel @ch-agent))
-    (restart-agent ch-agent nil :clear-actions true))
+      (.close ^Channel @ch-agent)))
   (valid? [this]
     (client-channel-valid? @ch-agent)))
 
