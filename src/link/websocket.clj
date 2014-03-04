@@ -66,6 +66,7 @@
 (make-handler-macro error)
 (make-handler-macro open)
 (make-handler-macro close)
+(make-handler-macro event)
 
 (defmacro create-handler1 [sharable & body]
   `(let [handlers# (merge ~@body)]
@@ -86,6 +87,11 @@
          (if-let [handler# (:on-error handlers#)]
            (handler# (.channel ctx#) e#)
            (.fireExceptionCaught  ctx# e#)))
+
+       (userEventTriggered [^ChannelHandlerContext ctx# evt#]
+         (if-let [handler# (:on-event handlers#)]
+           (handler# (.channel ctx#) evt#)
+           (.fireUserEventTriggered ctx# evt#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (let [ch# (.channel ctx#)]

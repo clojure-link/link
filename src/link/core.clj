@@ -82,6 +82,7 @@
 (make-handler-macro error)
 (make-handler-macro active)
 (make-handler-macro inactive)
+(make-handler-macro event)
 
 (defmacro create-handler0 [sharable & body]
   `(let [handlers# (merge ~@body)]
@@ -106,7 +107,12 @@
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (if-let [handler# (:on-message handlers#)]
            (handler# (.channel ctx#) msg#)
-           (.fireChannelRead ctx# msg#))))))
+           (.fireChannelRead ctx# msg#)))
+
+       (userEventTriggered [^ChannelHandlerContext ctx# evt#]
+         (if-let [handler# (:on-event handlers#)]
+           (handler# (.channel ctx#) evt#)
+           (.fireUserEventTriggered ctx# evt#))))))
 
 (defmacro create-handler [& body]
   `(create-handler0 true ~@body))
