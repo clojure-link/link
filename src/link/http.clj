@@ -142,7 +142,8 @@
 
 (defn http-server [port ring-fn
                    & {:keys [threads executor debug host
-                             ssl-context max-request-body]
+                             ssl-context max-request-body
+                             options]
                       :or {threads nil
                            executor nil
                            debug false
@@ -157,4 +158,5 @@
                    :handler ring-handler}]]
     (tcp-server port handlers
                 :host host
-                :ssl-context ssl-context)))
+                :ssl-context ssl-context
+                :options options)))
