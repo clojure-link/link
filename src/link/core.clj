@@ -1,7 +1,7 @@
 (ns link.core
   (:refer-clojure :exclude [send])
   (:use [link.util :only [make-handler-macro]])
-  (:import [java.net InetSocketAddress])
+  (:import [java.net InetSocketAddress InetAddress])
   (:import [io.netty.channel
             Channel
             ChannelFuture
@@ -24,7 +24,8 @@
   (and ch (.isActive ch)))
 
 (defn- addr-str [^InetSocketAddress addr]
-  (str (.getHostString addr) ":" (.getPort addr)))
+  (str (.. addr (getAddress) (getHostAddress))
+       ":" (.getPort addr)))
 
 (defn- channel-id [^Channel ch]
   (str (addr-str (.localAddress ch))
