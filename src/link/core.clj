@@ -1,6 +1,7 @@
 (ns link.core
   (:refer-clojure :exclude [send])
   (:use [link.util :only [make-handler-macro]])
+  (:import [java.net InetSocketAddress])
   (:import [io.netty.channel
             Channel
             ChannelFuture
@@ -22,8 +23,13 @@
 (defn- client-channel-valid? [^Channel ch]
   (and ch (.isActive ch)))
 
+(defn- addr-str [^InetSocketAddress addr]
+  (str (.getHostString addr) ":" (.getPort addr)))
+
 (defn- channel-id [^Channel ch]
-  (str (.localAddress ch) "->" (.remoteAddress ch)))
+  (str (addr-str (.localAddress ch))
+       "->"
+       (addr-str (.remoteAddress ch))))
 
 (deftype ClientSocketChannel [ch-agent factory-fn]
   LinkMessageChannel
