@@ -2,6 +2,7 @@
   (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
+  (:require [clojure.tools.logging :as logging])
   (:import [java.net InetAddress InetSocketAddress]
            [javax.net.ssl SSLContext]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
@@ -135,6 +136,8 @@
       (if (and chf (.isSuccess ^ChannelFuture chf))
         (.channel ^ChannelFuture chf)
         (do
+          (logging/infof "Trying to connect to %s %dms later."
+                         (str addr) (* 2 interval))
           (Thread/sleep interval)
           (recur (* 2 interval)))))))
 
