@@ -15,8 +15,13 @@
             PingWebSocketFrame
             PongWebSocketFrame
             CloseWebSocketFrame
-            WebSocketServerHandshaker])
+            WebSocketServerHandshaker
+            WebSocketClientHandshaker
+            WebSocketClientHandshakerFactory
+            WebSocketVersion])
   (:import [io.netty.channel
+            Channel
+            ChannelPipeline
             ChannelHandlerContext
             SimpleChannelInboundHandler]))
 
@@ -117,3 +122,16 @@
 
 (defmacro create-stateful-websocket-handler [& body]
   `(fn [] (create-handler1 false ~@body)))
+
+(defn handshake-handler [url subprotocol]
+  (let [handshaker (WebSocketClientHandshakerFactory/newHandshaker
+                    url WebSocketVersion/V13 subprotocol false nil)
+        handshake-promise (promise)]
+    (proxy [SimpleChannelInboundHandler] []
+      (channelActive [^ChannelHandlerContext ctx]
+        (.handshake ^WebSocketClientHandshaker handshaker
+                    ^Channel (.channel ctx)))
+      (channelRead0 [^ChannelHandlerContext ctx msg]
+        (.finishHandshake ^WebSocketClientHandshaker handshaker
+                          ^Channel (.channel ctx) msg)
+        (.remove ^ChannelPipeline (.pipeline ctx) this)))))
