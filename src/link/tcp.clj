@@ -52,7 +52,7 @@
                    (conj (seq handlers) decoder)
                    handlers)
         handlers (if ssl-context
-                   (conj (seq handlers) (ssl-handler ssl-context false))
+                   (conj (seq handlers) #(ssl-handler ssl-context false))
                    handlers)
 
         channel-initializer (channel-init handlers)
@@ -109,7 +109,7 @@
         handlers (if encoder (conj (seq handlers) encoder) handlers)
         handlers (if decoder (conj (seq handlers) decoder) handlers)
         handlers (if ssl-context
-                   (conj (seq handlers) (ssl-handler ssl-context true))
+                   (conj (seq handlers) #(ssl-handler ssl-context true))
                    handlers)
 
         channel-initializer (channel-init handlers)
