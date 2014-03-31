@@ -37,7 +37,6 @@
 
 (defn ssl-handler [^SSLContext context client-mode?]
   (SslHandler. (doto (.createSSLEngine context)
-                 (.setIssueHandshake true)
 		             (.setUseClientMode client-mode?))))
 
 (defn- start-tcp-server [host port handlers encoder decoder
