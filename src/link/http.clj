@@ -17,6 +17,7 @@
             FullHttpResponse
             HttpHeaders
             HttpHeaders$Names
+            HttpHeaders$Values
             HttpRequestDecoder
             HttpObjectAggregator
             HttpResponseEncoder
@@ -106,6 +107,10 @@
     (.set ^HttpHeaders netty-headers
           ^String HttpHeaders$Names/CONTENT_LENGTH
           ^Object (.readableBytes content))
+
+    (.set ^HttpHeaders netty-headers
+          ^String HttpHeaders$Names/CONNECTION
+          ^String HttpHeaders$Values/KEEP_ALIVE)
 
     netty-response))
 
