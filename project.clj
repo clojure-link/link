@@ -1,4 +1,4 @@
-(defproject link "0.6.7"
+(defproject link "0.6.8-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
@@ -11,4 +11,5 @@
         :url "http://github.com/sunng87/link"}
   :global-vars {*warn-on-reflection* true}
   :lein-release {:scm :git
-                 :deploy-via :clojars})
+                 :deploy-via :shell
+                 :shell ["lein" "deploy" "clojars"]})
