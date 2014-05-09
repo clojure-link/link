@@ -110,7 +110,7 @@
 
     (.set ^HttpHeaders netty-headers
           ^String HttpHeaders$Names/CONNECTION
-          ^String HttpHeaders$Values/KEEP_ALIVE)
+          ^Object HttpHeaders$Values/KEEP_ALIVE)
 
     netty-response))
 
