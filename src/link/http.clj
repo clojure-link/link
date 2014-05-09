@@ -139,7 +139,7 @@
   (create-handler
    (on-message [ch msg]
                (let [req (ring-request ch msg)
-                     resp (ring-fn req)]
+                     resp (or (ring-fn req) {})]
                  (http-handle resp ch req)))
 
    (on-error [ch exc]
