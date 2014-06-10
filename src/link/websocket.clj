@@ -18,7 +18,8 @@
             WebSocketServerHandshaker])
   (:import [io.netty.channel
             ChannelHandlerContext
-            SimpleChannelInboundHandler]))
+            SimpleChannelInboundHandler
+            ChannelOutboundHandlerAdapter]))
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
@@ -117,3 +118,28 @@
 
 (defmacro create-stateful-websocket-handler [& body]
   `(fn [] (create-handler1 false ~@body)))
+
+
+(def ^:private byte-array-type (type (byte-array 0)))
+(def websocket-auto-frame-encoder
+  (proxy [ChannelOutboundHandlerAdapter] []
+    (write [ctx msg promise]
+      (cond
+       (instance? String msg)
+       (.write ^ChannelHandlerContext ctx (text msg) promise)
+
+       (instance? ByteBuf msg)
+       (.write ^ChannelHandlerContext ctx (binary msg) promise)
+
+       (= byte-array-type (type msg))
+       (.write ^ChannelHandlerContext ctx
+               (binary (Unpooled/wrappedBuffer ^bytes msg)) promise)
+
+       :else
+       ;; super magic: get rid of reflection warning in proxy-super
+       ;; https://groups.google.com/forum/#!msg/clojure/x8F-WYIk2Nk/gEo_o69e6xsJ
+       (let [^ChannelOutboundHandlerAdapter this this]
+         (proxy-super write ctx msg promise))))
+
+    (isSharable []
+      true)))
