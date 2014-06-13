@@ -9,7 +9,4 @@
   :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
-  :global-vars {*warn-on-reflection* true}
-  :lein-release {:scm :git
-                 :deploy-via :shell
-                 :shell ["lein" "deploy" "clojars"]})
+  :global-vars {*warn-on-reflection* true})
