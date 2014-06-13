@@ -23,10 +23,7 @@
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
-  [path subprotocols & {:keys [max-frame-size
-                               allow-extensions]
-                        :or {max-frame-size 65536
-                             allow-extensions false}}]
+  [path subprotocols allow-extensions max-frame-size]
   (proxy [WebSocketServerProtocolHandler]
       [path subprotocols allow-extensions max-frame-size]
     (decode [^ChannelHandlerContext ctx
@@ -40,13 +37,17 @@
         (.add out (.retain frame))))))
 
 (defn websocket-codecs
-  ([path] (websocket-codecs path nil))
-  ([path subprotocols]
-     ;; web socket handler is of course stateful
-     [(fn [] (HttpRequestDecoder.))
-      (fn [] (HttpObjectAggregator. 65536))
-      (fn [] (HttpResponseEncoder.))
-      (fn [] (server-protocol-handler path subprotocols))]))
+  [path & {:keys [max-frame-size
+                  allow-extensions
+                  subprotocols]
+           :or {max-frame-size 65536
+                allow-extensions false}}]
+  ;; web socket handler is of course stateful
+  [(fn [] (HttpRequestDecoder.))
+   (fn [] (HttpObjectAggregator. 65536))
+   (fn [] (HttpResponseEncoder.))
+   (fn [] (server-protocol-handler path subprotocols
+                                  allow-extensions max-frame-size))])
 
 (defn text [^String s]
   (TextWebSocketFrame. s))
