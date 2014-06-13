@@ -23,9 +23,12 @@
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
-  [path subprotocols]
+  [path subprotocols & {:keys [max-frame-size
+                               allow-extensions]
+                        :or {max-frame-size 65536
+                             allow-extensions false}}]
   (proxy [WebSocketServerProtocolHandler]
-      [path subprotocols]
+      [path subprotocols allow-extensions max-frame-size]
     (decode [^ChannelHandlerContext ctx
              ^WebSocketFrame frame
              ^List out]
