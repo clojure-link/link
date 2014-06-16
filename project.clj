@@ -14,4 +14,5 @@
   :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
-  :global-vars {*warn-on-reflection* true})
+  :global-vars {*warn-on-reflection* true}
+  :deploy-repositories {"releases" :clojars})
