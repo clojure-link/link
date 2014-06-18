@@ -113,9 +113,7 @@
               (.writeAndFlush ch# (pong (.content ^PongWebSocketFrame msg#))))
 
             (and (instance? PongWebSocketFrame msg#) (:on-pong handlers#))
-            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))
-
-            :else (.fireChannelRead ctx# msg#)))))))
+            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))))))))
 
 (defmacro create-websocket-handler [& body]
   `(create-handler1 true ~@body))
