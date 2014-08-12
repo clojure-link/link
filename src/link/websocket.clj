@@ -63,6 +63,10 @@
   ([] (pong (Unpooled/buffer 0)))
   ([^ByteBuf payload] (PongWebSocketFrame. payload)))
 
+(defn closing
+  ([] (CloseWebSocketFrame.))
+  ([^long status ^String reason] (CloseWebSocketFrame. (int status) reason)))
+
 ;; make message receive handler
 (make-handler-macro text)
 (make-handler-macro binary)
