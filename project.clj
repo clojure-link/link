@@ -10,7 +10,7 @@
                  [io.netty/netty-common "4.0.21.Final"]
                  [io.netty/netty-handler "4.0.21.Final"]
                  [io.netty/netty-transport "4.0.21.Final"]
-                 [org.clojure/tools.logging "0.2.6"]]
+                 [org.clojure/tools.logging "0.3.0"]]
   :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
