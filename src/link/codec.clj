@@ -163,7 +163,6 @@
                    (recur (rest c) (conj r r0))))))))
 
 (defn encode*
-  ([codec data] (encode* codec data (Unpooled/buffer)))
   ([codec data ^ByteBuf buffer]
      ((:encoder codec) data buffer)))
 
