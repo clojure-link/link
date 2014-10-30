@@ -12,7 +12,7 @@
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
-           [io.netty.handler.ssl SslHandler]
+           [io.netty.handler.ssl SslHandler SniSslHandler]
            [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
@@ -35,12 +35,21 @@
             (let [h (if (fn? hs) (hs) hs)]
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
+(defn ssl-engine [^SSLContext context client-mode?]
+  (doto (.createSSLEngine context)
+    (.setUseClientMode client-mode?)))
+
 (defn ssl-handler [^SSLContext context client-mode?]
-  (SslHandler. (doto (.createSSLEngine context)
-		             (.setUseClientMode client-mode?))))
+  (SslHandler. (ssl-engine context client-mode?)))
+
+(defn sni-ssl-handler [context-map ^SSLContext default-context]
+  (SniSslHandler.
+   (into {} (for [[k v] context-map]
+              [k (ssl-engine v false)]))
+   (ssl-engine default-context false)))
 
 (defn- start-tcp-server [host port handlers encoder decoder
-                         options ssl-context]
+                         options ssl-context ssl-contexts-map]
   (let [boss-group (NioEventLoopGroup.)
         worker-group (NioEventLoopGroup.)
         bootstrap (ServerBootstrap.)
@@ -51,9 +60,10 @@
         handlers (if decoder
                    (conj (seq handlers) decoder)
                    handlers)
-        handlers (if ssl-context
-                   (conj (seq handlers) #(ssl-handler ssl-context false))
-                   handlers)
+        handlers (cond
+                  ssl-contexts-map (conj (seq handlers) #(sni-ssl-handler ssl-contexts-map ssl-context))
+                  ssl-context (conj (seq handlers) #(ssl-handler ssl-context false))
+                  :else handlers)
 
         channel-initializer (channel-init handlers)
 
@@ -75,7 +85,7 @@
 
 (defn tcp-server [port handlers
                   & {:keys [encoder decoder codec
-                            options ssl-context
+                            options ssl-context ssl-contexts-map
                             host]
                      :or {encoder nil
                           decoder nil
@@ -92,7 +102,8 @@
                       encoder
                       decoder
                       options
-                      ssl-context)))
+                      ssl-context
+                      ssl-contexts-map)))
 
 (defn stop-server [event-loop-groups]
   (doseq [^EventLoopGroup elg event-loop-groups]
