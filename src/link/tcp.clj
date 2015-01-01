@@ -4,7 +4,6 @@
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:require [clojure.tools.logging :as logging])
   (:import [java.net InetAddress InetSocketAddress]
-           [javax.net.ssl SSLContext]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel ChannelHandler
             ChannelHandlerContext ChannelFuture EventLoopGroup
@@ -12,7 +11,8 @@
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
-           [io.netty.handler.ssl SslHandler SniSslHandler]
+           [io.netty.handler.ssl SslHandler SniHandler
+            SslContext DomainNameMapping]
            [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
@@ -26,27 +26,23 @@
       (let [pipeline ^ChannelPipeline (.pipeline ch)]
         (doseq [hs handler-specs]
           (if (map? hs)
-            (let [h (if (fn? (:handler hs)) ((:handler hs)) (:handler hs))]
+            (let [h (if (fn? (:handler hs)) ((:handler hs) ch) (:handler hs))]
               (if-not (:executor hs)
                 (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))
                 (.addLast pipeline
                           ^EventExecutorGroup (:executor hs)
                           ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))))
-            (let [h (if (fn? hs) (hs) hs)]
+            (let [h (if (fn? hs) (hs ch) hs)]
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
-(defn ssl-engine [^SSLContext context client-mode?]
-  (doto (.createSSLEngine context)
-    (.setUseClientMode client-mode?)))
+(defn ssl-handler [^SslContext context]
+  (fn [^Channel ch] (.newHandler context (.alloc ch))))
 
-(defn ssl-handler [^SSLContext context client-mode?]
-  (SslHandler. (ssl-engine context client-mode?)))
-
-(defn sni-ssl-handler [context-map ^SSLContext default-context]
-  (SniSslHandler.
-   (into {} (for [[k v] context-map]
-              [k (ssl-engine v false)]))
-   (ssl-engine default-context false)))
+(defn sni-ssl-handler [context-map ^SslContext default-context]
+  (let [ddm (DomainNameMapping.  default-context)]
+    (doseq [[k v] context-map]
+      (.addContext ddm ^String k ^SslContext v))
+    (fn [_] (SniHandler. ddm))))
 
 (defn- start-tcp-server [host port handlers encoder decoder
                          options ssl-context ssl-contexts-map]
@@ -61,8 +57,8 @@
                    (conj (seq handlers) decoder)
                    handlers)
         handlers (cond
-                  ssl-contexts-map (conj (seq handlers) #(sni-ssl-handler ssl-contexts-map ssl-context))
-                  ssl-context (conj (seq handlers) #(ssl-handler ssl-context false))
+                  ssl-contexts-map (conj (seq handlers) (sni-ssl-handler ssl-contexts-map ssl-context))
+                  ssl-context (conj (seq handlers) (ssl-handler ssl-context false))
                   :else handlers)
 
         channel-initializer (channel-init handlers)

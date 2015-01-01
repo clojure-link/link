@@ -43,11 +43,11 @@
            :or {max-frame-size 65536
                 allow-extensions false}}]
   ;; web socket handler is of course stateful
-  [(fn [] (HttpRequestDecoder.))
-   (fn [] (HttpObjectAggregator. 65536))
-   (fn [] (HttpResponseEncoder.))
-   (fn [] (server-protocol-handler path subprotocols
-                                  allow-extensions max-frame-size))])
+  [(fn [_] (HttpRequestDecoder.))
+   (fn [_] (HttpObjectAggregator. 65536))
+   (fn [_] (HttpResponseEncoder.))
+   (fn [_] (server-protocol-handler path subprotocols
+                                   allow-extensions max-frame-size))])
 
 (defn text [^String s]
   (TextWebSocketFrame. s))
