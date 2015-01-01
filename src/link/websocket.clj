@@ -1,5 +1,4 @@
 (ns link.websocket
-  (:refer-clojure :exclude [send])
   (:use [link tcp util])
   (:import [java.util List])
   (:import [io.netty.buffer ByteBuf Unpooled])

@@ -1,5 +1,4 @@
 (ns link.tcp
-  (:refer-clojure :exclude [send])
   (:use [link.core])
   (:use [link.codec :only [netty-encoder netty-decoder]])
   (:require [clojure.tools.logging :as logging])

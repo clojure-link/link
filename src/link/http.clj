@@ -1,5 +1,4 @@
 (ns link.http
-  (:refer-clojure :exclude [send])
   (:use [link core tcp])
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
@@ -125,8 +124,8 @@
     (if debug
       (.printStackTrace exc (PrintStream. resp-out))
       (.writeBytes resp-buf (.getBytes "Internal Error" "UTF-8")))
-    (send ch resp)
-    (close ch)))
+    (send! ch resp)
+    (close! ch)))
 
 (defprotocol ResponseHandle
   (http-handle [req resp ch]))
@@ -134,7 +133,7 @@
 (extend-protocol ResponseHandle
   APersistentMap
   (http-handle [resp ch _]
-    (send ch (ring-response resp))))
+    (send! ch (ring-response resp))))
 
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler

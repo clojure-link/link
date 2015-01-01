@@ -13,12 +13,12 @@
 
 (defprotocol LinkMessageChannel
   (id [this])
-  (send [this msg])
-  (send* [this msg cb])
+  (send! [this msg])
+  (send!* [this msg cb])
   (valid? [this])
   (channel-addr [this])
   (remote-addr [this])
-  (close [this]))
+  (close! [this]))
 
 (defn- client-channel-valid? [^Channel ch]
   (and ch (.isActive ch)))
@@ -36,9 +36,9 @@
   LinkMessageChannel
   (id [this]
     (channel-id @ch-agent))
-  (send [this msg]
-    (send* this msg nil))
-  (send* [this msg cb]
+  (send! [this msg]
+    (send!* this msg nil))
+  (send!* [this msg cb]
     (clojure.core/send-off ch-agent
                            (fn [ch]
                              (let [ch- (if (client-channel-valid? ch)
@@ -59,7 +59,7 @@
     (.localAddress ^Channel @ch-agent))
   (remote-addr [this]
     (.remoteAddress ^Channel @ch-agent))
-  (close [this]
+  (close! [this]
     (when @ch-agent
       (.close ^Channel @ch-agent)))
   (valid? [this]
@@ -69,9 +69,9 @@
   NioSocketChannel
   (id [this]
     (channel-id this))
-  (send [this msg]
-    (send* this msg nil))
-  (send* [this msg cb]
+  (send! [this msg]
+    (send!* this msg nil))
+  (send!* [this msg cb]
     (let [cf (.writeAndFlush this msg)]
       (when cb
         (.addListener ^ChannelFuture cf (reify GenericFutureListener
@@ -80,7 +80,7 @@
     (.localAddress this))
   (remote-addr [this]
     (.remoteAddress this))
-  (close [this]
+  (close! [this]
     (.close this))
   (valid? [this]
     (.isActive this)))
