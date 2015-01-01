@@ -112,9 +112,8 @@
            (.fireExceptionCaught ctx# e#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
-         (if-let [handler# (:on-message handlers#)]
-           (handler# (.channel ctx#) msg#)
-           (.fireChannelRead ctx# msg#)))
+         (when-let [handler# (:on-message handlers#)]
+           (handler# (.channel ctx#) msg#)))
 
        (userEventTriggered [^ChannelHandlerContext ctx# evt#]
          (if-let [handler# (:on-event handlers#)]

@@ -17,6 +17,7 @@
             FullHttpResponse
             HttpHeaders
             HttpHeaders$Names
+            HttpHeaders$Values
             HttpRequestDecoder
             HttpObjectAggregator
             HttpResponseEncoder
@@ -25,9 +26,10 @@
   (:import [clojure.lang APersistentMap]))
 
 
-(defn- as-map [headers]
+(defn- as-header-map [headers]
   (apply hash-map
-         (flatten (map #(vector (key %) (val %)) headers))))
+         (flatten (map #(vector (lower-case (key %))
+                                (val %)) headers))))
 
 (defn- find-query-string [^String uri]
   (if (< 0 (.indexOf uri "?"))
@@ -54,7 +56,7 @@
      :content-length (HttpHeaders/getContentLength req)
      :character-encoding (HttpHeaders/getHeader
                           req HttpHeaders$Names/CONTENT_ENCODING)
-     :headers (as-map (.headers ^FullHttpRequest req))
+     :headers (as-header-map (.headers ^FullHttpRequest req))
      :body (let [cbis (ByteBufInputStream.
                        (.content ^FullHttpRequest req))]
              (if (> (.available ^ByteBufInputStream cbis) 0)
@@ -107,6 +109,10 @@
           ^String HttpHeaders$Names/CONTENT_LENGTH
           ^Object (.readableBytes content))
 
+    (.set ^HttpHeaders netty-headers
+          ^String HttpHeaders$Names/CONNECTION
+          ^Object HttpHeaders$Values/KEEP_ALIVE)
+
     netty-response))
 
 (defn http-on-error [ch exc debug]
@@ -134,7 +140,7 @@
   (create-handler
    (on-message [ch msg]
                (let [req (ring-request ch msg)
-                     resp (ring-fn req)]
+                     resp (or (ring-fn req) {})]
                  (http-handle resp ch req)))
 
    (on-error [ch exc]

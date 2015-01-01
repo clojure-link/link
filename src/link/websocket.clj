@@ -23,13 +23,14 @@
             Channel
             ChannelPipeline
             ChannelHandlerContext
-            SimpleChannelInboundHandler]))
+            SimpleChannelInboundHandler
+            ChannelOutboundHandlerAdapter]))
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
-  [path subprotocols]
+  [path subprotocols allow-extensions max-frame-size]
   (proxy [WebSocketServerProtocolHandler]
-      [path subprotocols]
+      [path subprotocols allow-extensions max-frame-size]
     (decode [^ChannelHandlerContext ctx
              ^WebSocketFrame frame
              ^List out]
@@ -41,13 +42,17 @@
         (.add out (.retain frame))))))
 
 (defn websocket-codecs
-  ([path] (websocket-codecs path nil))
-  ([path subprotocols]
-     ;; web socket handler is of course stateful
-     [(fn [] (HttpRequestDecoder.))
-      (fn [] (HttpObjectAggregator. 65536))
-      (fn [] (HttpResponseEncoder.))
-      (fn [] (server-protocol-handler path subprotocols))]))
+  [path & {:keys [max-frame-size
+                  allow-extensions
+                  subprotocols]
+           :or {max-frame-size 65536
+                allow-extensions false}}]
+  ;; web socket handler is of course stateful
+  [(fn [] (HttpRequestDecoder.))
+   (fn [] (HttpObjectAggregator. 65536))
+   (fn [] (HttpResponseEncoder.))
+   (fn [] (server-protocol-handler path subprotocols
+                                  allow-extensions max-frame-size))])
 
 (defn text [^String s]
   (TextWebSocketFrame. s))
@@ -62,6 +67,10 @@
 (defn pong
   ([] (pong (Unpooled/buffer 0)))
   ([^ByteBuf payload] (PongWebSocketFrame. payload)))
+
+(defn closing
+  ([] (CloseWebSocketFrame.))
+  ([^long status ^String reason] (CloseWebSocketFrame. (int status) reason)))
 
 ;; make message receive handler
 (make-handler-macro text)
@@ -113,9 +122,7 @@
               (.writeAndFlush ch# (pong (.content ^PongWebSocketFrame msg#))))
 
             (and (instance? PongWebSocketFrame msg#) (:on-pong handlers#))
-            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))
-
-            :else (.fireChannelRead ctx# msg#)))))))
+            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))))))))
 
 (defmacro create-websocket-handler [& body]
   `(create-handler1 true ~@body))
@@ -123,15 +130,26 @@
 (defmacro create-stateful-websocket-handler [& body]
   `(fn [] (create-handler1 false ~@body)))
 
-(defn handshake-handler [url subprotocol]
-  (let [handshaker (WebSocketClientHandshakerFactory/newHandshaker
-                    url WebSocketVersion/V13 subprotocol false nil)
-        handshake-promise (promise)]
-    (proxy [SimpleChannelInboundHandler] []
-      (channelActive [^ChannelHandlerContext ctx]
-        (.handshake ^WebSocketClientHandshaker handshaker
-                    ^Channel (.channel ctx)))
-      (channelRead0 [^ChannelHandlerContext ctx msg]
-        (.finishHandshake ^WebSocketClientHandshaker handshaker
-                          ^Channel (.channel ctx) msg)
-        (.remove ^ChannelPipeline (.pipeline ctx) this)))))
+(def ^:private byte-array-type (type (byte-array 0)))
+(def websocket-auto-frame-encoder
+  (proxy [ChannelOutboundHandlerAdapter] []
+    (write [ctx msg promise]
+      (cond
+       (instance? String msg)
+       (.write ^ChannelHandlerContext ctx (text msg) promise)
+
+       (instance? ByteBuf msg)
+       (.write ^ChannelHandlerContext ctx (binary msg) promise)
+
+       (= byte-array-type (type msg))
+       (.write ^ChannelHandlerContext ctx
+               (binary (Unpooled/wrappedBuffer ^bytes msg)) promise)
+
+       :else
+       ;; super magic: get rid of reflection warning in proxy-super
+       ;; https://groups.google.com/forum/#!msg/clojure/x8F-WYIk2Nk/gEo_o69e6xsJ
+       (let [^ChannelOutboundHandlerAdapter this this]
+         (proxy-super write ctx msg promise))))
+
+    (isSharable []
+      true)))
