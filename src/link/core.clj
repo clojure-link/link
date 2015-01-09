@@ -124,7 +124,7 @@
   `(create-handler0 true ~@body))
 
 (defmacro create-stateful-handler [& body]
-  `(fn [] (create-handler0 false ~@body)))
+  `(fn [_] (create-handler0 false ~@body)))
 
 (def channel-option
   {
