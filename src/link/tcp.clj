@@ -11,7 +11,8 @@
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
            [io.netty.handler.ssl SslHandler SniHandler
-            SslContext DomainNameMapping]
+            SslContext]
+           [io.netty.util DomainNameMapping]
            [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
@@ -38,9 +39,9 @@
   (fn [^Channel ch] (.newHandler context (.alloc ch))))
 
 (defn sni-ssl-handler [context-map ^SslContext default-context]
-  (let [ddm (DomainNameMapping.  default-context)]
+  (let [ddm (DomainNameMapping. default-context)]
     (doseq [[k v] context-map]
-      (.addContext ddm ^String k ^SslContext v))
+      (.add ddm ^String k ^SslContext v))
     (fn [_] (SniHandler. ddm))))
 
 (defn- start-tcp-server [host port handlers encoder decoder
