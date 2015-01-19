@@ -1,7 +1,8 @@
 (ns link.tcp
-  (:use [link.core])
-  (:use [link.codec :only [netty-encoder netty-decoder]])
-  (:require [clojure.tools.logging :as logging])
+  (:require [link.core :refer :all]
+            [link.codec :refer [netty-encoder netty-decoder]]
+            [link.ssl :refer [ssl-handler sni-ssl-handler]]
+            [clojure.tools.logging :as logging])
   (:import [java.net InetAddress InetSocketAddress]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel ChannelHandler
@@ -10,9 +11,6 @@
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
-           [io.netty.handler.ssl SslHandler SniHandler
-            SslContext]
-           [io.netty.util DomainNameMapping]
            [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
@@ -34,15 +32,6 @@
                           ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))))
             (let [h (if (fn? hs) (hs ch) hs)]
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
-
-(defn ssl-handler [^SslContext context]
-  (fn [^Channel ch] (.newHandler context (.alloc ch))))
-
-(defn sni-ssl-handler [context-map ^SslContext default-context]
-  (let [ddm (DomainNameMapping. default-context)]
-    (doseq [[k v] context-map]
-      (.add ddm ^String k ^SslContext v))
-    (fn [_] (SniHandler. ddm))))
 
 (defn- start-tcp-server [host port handlers encoder decoder
                          options ssl-context ssl-contexts-map]
