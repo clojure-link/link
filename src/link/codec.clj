@@ -171,7 +171,7 @@
 
 (defn netty-encoder [codec]
   (if codec
-    (fn []
+    (fn [_]
       (proxy [MessageToByteEncoder] []
         (encode [^ChannelHandlerContext ctx
                  msg
@@ -180,7 +180,7 @@
 
 (defn netty-decoder [codec]
   (if codec
-    (fn []
+    (fn [_]
       (proxy [ByteToMessageDecoder]  []
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
