@@ -1,7 +1,6 @@
 (ns link.tcp
   (:require [link.core :refer :all]
             [link.codec :refer [netty-encoder netty-decoder]]
-            [link.ssl :refer [ssl-handler sni-ssl-handler]]
             [clojure.tools.logging :as logging])
   (:import [java.net InetAddress InetSocketAddress]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
@@ -33,8 +32,7 @@
             (let [h (if (fn? hs) (hs ch) hs)]
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
-(defn- start-tcp-server [host port handlers encoder decoder
-                         options ssl-context ssl-contexts-map]
+(defn- start-tcp-server [host port handlers encoder decoder options]
   (let [boss-group (NioEventLoopGroup.)
         worker-group (NioEventLoopGroup.)
         bootstrap (ServerBootstrap.)
@@ -45,10 +43,6 @@
         handlers (if decoder
                    (conj (seq handlers) decoder)
                    handlers)
-        handlers (cond
-                  ssl-contexts-map (conj (seq handlers) (sni-ssl-handler ssl-contexts-map ssl-context))
-                  ssl-context (conj (seq handlers) (ssl-handler ssl-context false))
-                  :else handlers)
 
         channel-initializer (channel-init handlers)
 
@@ -70,13 +64,11 @@
 
 (defn tcp-server [port handlers
                   & {:keys [encoder decoder codec
-                            options ssl-context ssl-contexts-map
-                            host]
+                            options host]
                      :or {encoder nil
                           decoder nil
                           codec nil
                           options {}
-                          ssl-context nil
                           host "0.0.0.0"}}]
   (let [handlers (if (vector? handlers) handlers [handlers])
         encoder (netty-encoder (or encoder codec))
@@ -86,16 +78,14 @@
                       handlers
                       encoder
                       decoder
-                      options
-                      ssl-context
-                      ssl-contexts-map)))
+                      options)))
 
 (defn stop-server [event-loop-groups]
   (doseq [^EventLoopGroup elg event-loop-groups]
     (.sync (.shutdownGracefully elg))))
 
 (defn tcp-client-factory [handlers
-                          & {:keys [encoder decoder codec options ssl-context]
+                          & {:keys [encoder decoder codec options]
                              :or {options {}}}]
   (let [worker-group (NioEventLoopGroup.)
         encoder (netty-encoder (or encoder codec))
@@ -104,9 +94,6 @@
         handlers (if (vector? handlers) handlers [handlers])
         handlers (if encoder (conj (seq handlers) encoder) handlers)
         handlers (if decoder (conj (seq handlers) decoder) handlers)
-        handlers (if ssl-context
-                   (conj (seq handlers) #(ssl-handler ssl-context true))
-                   handlers)
 
         channel-initializer (channel-init handlers)
         options (into [] options)]
