@@ -32,17 +32,10 @@
             (let [h (if (fn? hs) (hs ch) hs)]
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
-(defn- start-tcp-server [host port handlers encoder decoder options]
+(defn- start-tcp-server [host port handlers options]
   (let [boss-group (NioEventLoopGroup.)
         worker-group (NioEventLoopGroup.)
         bootstrap (ServerBootstrap.)
-
-        handlers (if encoder
-                   (conj (seq handlers) encoder)
-                   handlers)
-        handlers (if decoder
-                   (conj (seq handlers) decoder)
-                   handlers)
 
         channel-initializer (channel-init handlers)
 
@@ -63,21 +56,13 @@
     [worker-group boss-group]))
 
 (defn tcp-server [port handlers
-                  & {:keys [encoder decoder codec
-                            options host]
-                     :or {encoder nil
-                          decoder nil
-                          codec nil
-                          options {}
+                  & {:keys [options host]
+                     :or {options {}
                           host "0.0.0.0"}}]
-  (let [handlers (if (sequential? handlers) handlers [handlers])
-        encoder (netty-encoder (or encoder codec))
-        decoder (netty-decoder (or decoder codec))]
+  (let [handlers (if (sequential? handlers) handlers [handlers])]
     (start-tcp-server host
                       port
                       handlers
-                      encoder
-                      decoder
                       options)))
 
 (defn stop-server [event-loop-groups]
@@ -85,15 +70,11 @@
     (.sync (.shutdownGracefully elg))))
 
 (defn tcp-client-factory [handlers
-                          & {:keys [encoder decoder codec options]
+                          & {:keys [options]
                              :or {options {}}}]
   (let [worker-group (NioEventLoopGroup.)
-        encoder (netty-encoder (or encoder codec))
-        decoder (netty-decoder (or decoder codec))
         bootstrap (Bootstrap.)
         handlers (if (sequential? handlers) handlers [handlers])
-        handlers (if encoder (conj (seq handlers) encoder) handlers)
-        handlers (if decoder (conj (seq handlers) decoder) handlers)
 
         channel-initializer (channel-init handlers)
         options (into [] options)]
