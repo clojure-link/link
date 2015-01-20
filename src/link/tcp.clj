@@ -70,7 +70,7 @@
                           codec nil
                           options {}
                           host "0.0.0.0"}}]
-  (let [handlers (if (vector? handlers) handlers [handlers])
+  (let [handlers (if (sequential? handlers) handlers [handlers])
         encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))]
     (start-tcp-server host
@@ -91,7 +91,7 @@
         encoder (netty-encoder (or encoder codec))
         decoder (netty-decoder (or decoder codec))
         bootstrap (Bootstrap.)
-        handlers (if (vector? handlers) handlers [handlers])
+        handlers (if (sequential? handlers) handlers [handlers])
         handlers (if encoder (conj (seq handlers) encoder) handlers)
         handlers (if decoder (conj (seq handlers) decoder) handlers)
 
