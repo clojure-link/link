@@ -5,9 +5,11 @@
   (:import [io.netty.handler.codec.http
             HttpResponseEncoder
             HttpRequestDecoder
-            HttpObjectAggregator])
-  (:import [io.netty.handler.codec.http.websocketx
+            HttpObjectAggregator
+            FullHttpRequest]
+           [io.netty.handler.codec.http.websocketx
             WebSocketServerProtocolHandler
+            WebSocketServerProtocolHandler$ServerHandshakeStateEvent
             WebSocketFrame
             TextWebSocketFrame
             BinaryWebSocketFrame
@@ -17,13 +19,35 @@
             WebSocketServerHandshaker
             WebSocketClientHandshaker
             WebSocketClientHandshakerFactory
-            WebSocketVersion])
-  (:import [io.netty.channel
+            WebSocketVersion]
+           [io.netty.channel
             Channel
             ChannelPipeline
             ChannelHandlerContext
             SimpleChannelInboundHandler
-            ChannelOutboundHandlerAdapter]))
+            ChannelInboundHandlerAdapter
+            ChannelOutboundHandlerAdapter]
+           [io.netty.util AttributeKey]))
+
+(defonce ^:private handshake-info-key
+  (AttributeKey/valueOf "link-websocket-handshake-info"))
+
+(defn handshake-info
+  ([^Channel ch]
+   (.get (.attr ch handshake-info-key)))
+  ([^Channel ch info]
+   (.set (.attr ch handshake-info-key) info)))
+
+(def websocket-handshake-message-handler
+  (proxy [ChannelInboundHandlerAdapter] []
+    (channelRead [ctx req]
+      ;; req is actually a FullHttpRequest object
+      (let [uri (.getUri ^FullHttpRequest req)
+            headers (.headers ^FullHttpRequest req)]
+        (handshake-info (.channel ctx) {:uri uri
+                                        :headers headers}))
+      (.remove (.pipeline ctx) this)
+      (proxy-super channelRead ctx req))))
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
@@ -50,6 +74,7 @@
   [(fn [_] (HttpRequestDecoder.))
    (fn [_] (HttpObjectAggregator. 65536))
    (fn [_] (HttpResponseEncoder.))
+   websocket-handshake-message-handler
    (fn [_] (server-protocol-handler path subprotocols
                                    allow-extensions max-frame-size))])
 
@@ -79,6 +104,7 @@
 (make-handler-macro error)
 (make-handler-macro open)
 (make-handler-macro close)
+(make-handler-macro handshake-complete)
 (make-handler-macro event)
 
 (defmacro create-handler1 [sharable & body]
@@ -102,8 +128,9 @@
            (.fireExceptionCaught  ctx# e#)))
 
        (userEventTriggered [^ChannelHandlerContext ctx# evt#]
-         (if-let [handler# (:on-event handlers#)]
-           (handler# (.channel ctx#) evt#)
+         (if (and (= evt# WebSocketServerProtocolHandler$ServerHandshakeStateEvent/HANDSHAKE_COMPLETE)
+                  (:on-handshake-complete handlers#))
+           ((:on-handshake-complete handlers#) (.channel ctx#))
            (.fireUserEventTriggered ctx# evt#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
