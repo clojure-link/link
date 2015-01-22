@@ -167,12 +167,10 @@
                 :options options)))
 
 (defprotocol Header
-  (header [this key] [this key val]))
+  (get-header [this key])
+  (set-header [this key val]))
 
-(extend-type HttpHeaders
+(extend HttpHeaders
   Header
-
-  (header [this key]
-    (.get this ^String key))
-  (header [this key val]
-    (.set this ^String key val)))
+  {:get-header #(.get %1 ^String %2)
+   :set-header #(.set %1 ^String %2 %3)})
