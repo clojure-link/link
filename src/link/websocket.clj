@@ -47,7 +47,8 @@
         (handshake-info (.channel ctx) {:uri uri
                                         :headers headers}))
       (.remove (.pipeline ctx) this)
-      (proxy-super channelRead ctx req))))
+      (proxy-super channelRead ctx req))
+    (isSharable [] true)))
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
