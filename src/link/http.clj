@@ -165,3 +165,12 @@
                 :host host
                 :ssl-context ssl-context
                 :options options)))
+
+(defprotocol Header
+  (get-header [this key])
+  (set-header [this key val]))
+
+(extend HttpHeaders
+  Header
+  {:get-header #(.get %1 ^String %2)
+   :set-header #(.set %1 ^String %2 %3)})
