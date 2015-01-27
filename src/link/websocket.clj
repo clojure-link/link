@@ -85,6 +85,9 @@
 (defn binary [^ByteBuf bytes]
   (BinaryWebSocketFrame. bytes))
 
+(defn binary2 [^bytes bytes]
+  (binary (Unpooled/wrappedBuffer ^bytes bytes)))
+
 (defn ping
   ([] (ping (Unpooled/buffer 0)))
   ([^ByteBuf payload] (PingWebSocketFrame. payload)))
@@ -170,7 +173,7 @@
 
        (= byte-array-type (type msg))
        (.write ^ChannelHandlerContext ctx
-               (binary (Unpooled/wrappedBuffer ^bytes msg)) promise)
+               (binary2 msg) promise)
 
        :else
        ;; super magic: get rid of reflection warning in proxy-super
