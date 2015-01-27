@@ -74,10 +74,10 @@ In link 0.5, there are four events you can process in handler
 And for the channel `ch`, you can call following functions as defined
 by `LinkMessageChannel` protocol.
 
-* `(send [ch msg])` write a msg into channel
+* `(send! [ch msg])` write a msg into channel
 * `(channel-addr [ch])` get the local socket address of the channel
 * `(remote-addr [ch])` get the remote socket address of the channel
-* `(close [ch])` request to close the channel
+* `(close! [ch])` request to close the channel
 * `(valid? [ch])` test if channel is still open and active
 
 #### the TCP server
@@ -94,14 +94,14 @@ To start a server, you can provide a few argument to customize it:
 (def handler-spec {:handler echo-handler :executor (new-executor 10)})
 
 ;; you can also provide a few handlers by passing a vector of them
-(tcp-server 8081 handler-spec
-            :codec custom-codec ;; your codec defined with link.codec
-
+(tcp-server 8081 [handler-spec]
             :options {:so-reuseaddr true} ;; netty, ip, tcp and socket options
-            :ssl-content ... ;; a SSLContext object for ssl server
             :host ;; if to bind, default "0.0.0.0"
 
 ```
+
+From link 0.7, ssl handler and codecs are all handlers. You will need
+to put them at correct position of handlers.
 
 See a full list of options in `link.core/channel-option`. You need to
 prefixing a `clild-` to specify option for child channels:
@@ -122,9 +122,7 @@ large number of connections.
 ```clojure
 (def client-factory
   (tcp-client-factory handlers
-                      :codec custom-codec
-                      :options ...
-                      :ssl-context))
+                      :options ...))
 ```
 
 Create a client
@@ -181,6 +179,6 @@ Create a websocket handler:
 
 ## License
 
-Copyright (C) 2012-2014 Sun Ning <sunng@about.me>
+Copyright (C) 2012-2015 Sun Ning <sunng@about.me>
 
 Distributed under the Eclipse Public License, the same as Clojure.
