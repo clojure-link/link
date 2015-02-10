@@ -92,23 +92,25 @@
   (let [^EventLoopGroup elg (client-factory 1)]
     (.sync (.shutdownGracefully elg))))
 
-(defn- connect [^Bootstrap bootstrap addr]
+(defn- connect [^Bootstrap bootstrap addr stopped]
   (loop [interval 1000]
-    (let [chf (.await ^ChannelFuture
-                      (.connect bootstrap addr))]
-      (if (and chf (.isSuccess ^ChannelFuture chf))
-        (.channel ^ChannelFuture chf)
-        (do
-          (logging/infof "Trying to connect to %s %dms later."
-                         (str addr) (* 2 interval))
-          (Thread/sleep interval)
-          (recur (* 2 interval)))))))
+    (when-not @stopped
+      (let [chf (.await ^ChannelFuture
+                        (.connect bootstrap addr))]
+        (if (and chf (.isSuccess ^ChannelFuture chf))
+          (.channel ^ChannelFuture chf)
+          (do
+            (logging/infof "Trying to connect to %s %dms later."
+                           (str addr) (* 2 interval))
+            (Thread/sleep interval)
+            (recur (* 2 interval))))))))
 
 (defn tcp-client [factory host port
                   & {:keys [lazy-connect]
                      :or {lazy-connect false}}]
   (let [bootstrap (factory 0)
-        addr (InetSocketAddress. ^String host ^Integer port)]
-    (let [connect-fn (fn [] (connect bootstrap addr))
+        addr (InetSocketAddress. ^String host ^Integer port)
+        stopped (atom false)]
+    (let [connect-fn (fn [] (connect bootstrap addr stopped))
           chref (agent (if-not lazy-connect (connect-fn)))]
-      (ClientSocketChannel. chref connect-fn))))
+      (ClientSocketChannel. chref connect-fn stopped))))

@@ -32,7 +32,7 @@
        "->"
        (addr-str (.remoteAddress ch))))
 
-(deftype ClientSocketChannel [ch-agent factory-fn]
+(deftype ClientSocketChannel [ch-agent factory-fn stopped]
   LinkMessageChannel
   (id [this]
     (channel-id @ch-agent))
@@ -60,6 +60,7 @@
   (remote-addr [this]
     (.remoteAddress ^Channel @ch-agent))
   (close! [this]
+    (reset! stopped true)
     (when @ch-agent
       (.close ^Channel @ch-agent)))
   (valid? [this]
