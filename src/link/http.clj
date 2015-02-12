@@ -147,7 +147,7 @@
 
 (defn http-server [port ring-fn
                    & {:keys [threads executor debug host
-                             ssl-context max-request-body
+                             max-request-body
                              options]
                       :or {threads nil
                            executor nil
@@ -156,14 +156,13 @@
                            max-request-body 1048576}}]
   (let [executor (if threads (threads/new-executor threads) executor)
         ring-handler (create-http-handler-from-ring ring-fn debug)
-        handlers [#(HttpRequestDecoder.)
-                  #(HttpObjectAggregator. max-request-body)
-                  #(HttpResponseEncoder.)
+        handlers [(fn [_] (HttpRequestDecoder.))
+                  (fn [_] (HttpObjectAggregator. max-request-body))
+                  (fn [_] (HttpResponseEncoder.))
                   {:executor executor
                    :handler ring-handler}]]
     (tcp-server port handlers
                 :host host
-                :ssl-context ssl-context
                 :options options)))
 
 (defprotocol Header
