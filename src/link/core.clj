@@ -126,36 +126,3 @@
 
 (defmacro create-stateful-handler [& body]
   `(fn [_] (create-handler0 false ~@body)))
-
-(def channel-option
-  {
-   :allocator ChannelOption/ALLOCATOR
-   :rcvbuf-allocator ChannelOption/RCVBUF_ALLOCATOR
-   :message-size-estimator ChannelOption/MESSAGE_SIZE_ESTIMATOR
-
-   :connect-timeout-millis ChannelOption/CONNECT_TIMEOUT_MILLIS
-   :max-messages-per-read ChannelOption/MAX_MESSAGES_PER_READ
-   :write-spin-count ChannelOption/WRITE_SPIN_COUNT
-   :write-buffer-high-water-mark ChannelOption/WRITE_BUFFER_HIGH_WATER_MARK
-   :write-buffer-low-water-mark ChannelOption/WRITE_BUFFER_LOW_WATER_MARK
-
-   :allow-half-closure ChannelOption/ALLOW_HALF_CLOSURE
-   :auto-read ChannelOption/AUTO_READ
-
-   :so-broadcast ChannelOption/SO_BROADCAST
-   :so-keepalive ChannelOption/SO_KEEPALIVE
-   :so-sndbuf ChannelOption/SO_SNDBUF
-   :so-rcvbuf ChannelOption/SO_RCVBUF
-   :so-reuseaddr ChannelOption/SO_REUSEADDR
-   :so-linger ChannelOption/SO_LINGER
-   :so-backlog ChannelOption/SO_BACKLOG
-   :so-timeout ChannelOption/SO_TIMEOUT
-
-   :ip-tos ChannelOption/IP_TOS
-   :ip-multicast-addr ChannelOption/IP_MULTICAST_ADDR
-   :ip-multicast-if ChannelOption/IP_MULTICAST_IF
-   :ip-multicast-ttl ChannelOption/IP_MULTICAST_TTL
-   :ip-multicast-loop-disabled ChannelOption/IP_MULTICAST_LOOP_DISABLED
-
-   :tcp-nodelay ChannelOption/TCP_NODELAY
-   })

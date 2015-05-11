@@ -13,6 +13,14 @@
            [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
+(defn to-channel-option [co]
+  (let [co (name co)
+        co (-> (if (.startsWith co "child.")
+                 (subs co 6) co)
+               (clojure.string/replace #"-" "_")
+               (clojure.string/upper-case))]
+    (ChannelOption/valueOf co)))
+
 ;; handler specs
 ;; :handler the handler created by create-handler or a factory
 ;; function for stateful handler
@@ -47,9 +55,9 @@
       (.channel NioServerSocketChannel)
       (.childHandler channel-initializer))
     (doseq [op parent-options]
-      (.option bootstrap (channel-option (op 0)) (op 1)))
+      (.option bootstrap (to-channel-option (op 0)) (op 1)))
     (doseq [op child-options]
-      (.childOption bootstrap (channel-option (op 0)) (op 1)))
+      (.childOption bootstrap (to-channel-option (op 0)) (op 1)))
 
     (.sync ^ChannelFuture (.bind bootstrap (InetAddress/getByName host) port))
     ;; return event loop groups so we can shutdown the server gracefully
@@ -84,7 +92,7 @@
       (.channel NioSocketChannel)
       (.handler channel-initializer))
     (doseq [op options]
-      (.option bootstrap (channel-option (op 0)) (op 1)))
+      (.option bootstrap (to-channel-option (op 0)) (op 1)))
 
     [bootstrap worker-group]))
 
