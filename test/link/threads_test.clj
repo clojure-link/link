@@ -1,4 +1,4 @@
-(ns link.test.threads
+(ns link.threads-test
   (:require [clojure.test :refer :all]
             [link.threads :refer :all]))
 

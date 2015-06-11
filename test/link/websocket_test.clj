@@ -1,4 +1,4 @@
-(ns link.test.websocket
+(ns link.websocket-test
   (:use [link.websocket])
   (:use [clojure.test])
   (:import [io.netty.channel ChannelHandlerContext]))

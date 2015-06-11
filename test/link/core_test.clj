@@ -1,4 +1,4 @@
-(ns link.test.core
+(ns link.core-test
   (:use [link.core])
   (:use [clojure.test])
   (:import [java.net InetSocketAddress])

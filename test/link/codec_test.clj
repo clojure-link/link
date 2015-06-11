@@ -1,4 +1,4 @@
-(ns link.test.codec
+(ns link.codec-test
   (:refer-clojure :exclude [byte float double])
   (:use [clojure.test])
   (:use [link.codec])
