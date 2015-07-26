@@ -32,6 +32,19 @@
        "->"
        (addr-str (.remoteAddress ch))))
 
+(defn- send-msg-with-cb [ch msg cb]
+  (let [cf (.writeAndFlush ch msg)]
+          (when cb
+            (.addListener ^ChannelFuture cf
+                          (reify GenericFutureListener
+                            (operationComplete [this f]
+                              (cb f)))))))
+
+(defn- send-msg-with-cb-in-el [ch msg cb]
+  (.. ch
+      (eventLoop)
+      (execute #(send-msg-with-cb ch msg cb))))
+
 (deftype ClientSocketChannel [ch-agent factory-fn stopped]
   LinkMessageChannel
   (id [this]
@@ -39,22 +52,17 @@
   (send! [this msg]
     (send!* this msg nil))
   (send!* [this msg cb]
-    (clojure.core/send-off ch-agent
-                           (fn [ch]
-                             (let [ch- (if (client-channel-valid? ch)
-                                         ch
-                                         (do
-                                           (when ch
-                                             (.close ^Channel ch))
-                                           (factory-fn)))
-                                   cf (if (client-channel-valid? ch-)
-                                        (.writeAndFlush ^Channel ch- msg))]
-                               (when (and cf cb)
-                                 (.addListener ^ChannelFuture cf
-                                               (reify GenericFutureListener
-                                                 (operationComplete [this f]
-                                                   (cb f)))))
-                               ch-))))
+    (let [ch @ch-agent]
+      (if (client-channel-valid? ch)
+        (send-msg-with-cb-in-el ch msg cb)
+        (clojure.core/send-off ch-agent
+                               (fn [ch]
+                                 (let [ch (if (client-channel-valid? ch)
+                                            ch
+                                            (do
+                                              (when ch (.close ^Channel ch))
+                                              (factory-fn)))]
+                                   (send-msg-with-cb-in-el ch msg cb)))))))
   (channel-addr [this]
     (.localAddress ^Channel @ch-agent))
   (remote-addr [this]
