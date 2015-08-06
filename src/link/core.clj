@@ -14,7 +14,9 @@
 (defprotocol LinkMessageChannel
   (id [this])
   (send! [this msg])
+  (sends! [this msgs])
   (send!* [this msg cb])
+  (sends!* [this msgs cb])
   (valid? [this])
   (channel-addr [this])
   (remote-addr [this])
@@ -32,29 +34,36 @@
        "->"
        (addr-str (.remoteAddress ch))))
 
-(defn- send-msg-with-cb [ch msg cb]
-  (let [cf (.writeAndFlush ch msg)]
+(defn- send-msgs-with-cb [ch msgs cb]
+  (let [cf (loop [ms msgs]
+             (let [m (first ms)
+                   rm (rest ms)]
+               (if (empty? rm)
+                 (.writeAndFlush ch m)
+                 (do
+                   (.write ch m)
+                   (recur rm)))))]
           (when cb
             (.addListener ^ChannelFuture cf
                           (reify GenericFutureListener
                             (operationComplete [this f]
                               (cb f)))))))
 
-(defn- send-msg-with-cb-in-el [ch msg cb]
+(defn- send-msg-with-cb [ch msg cb]
+  (send-msgs-with-cb ch [msg] cb))
+
+(defn- send-msgs-with-cb-in-el [ch msgs cb]
   (.. ch
       (eventLoop)
-      (execute #(send-msg-with-cb ch msg cb))))
+      (execute #(send-msgs-with-cb ch msgs cb))))
 
-(deftype ClientSocketChannel [ch-agent factory-fn stopped]
-  LinkMessageChannel
-  (id [this]
-    (channel-id @ch-agent))
-  (send! [this msg]
-    (send!* this msg nil))
-  (send!* [this msg cb]
-    (let [ch @ch-agent]
+(defn- send-msg-with-cb-in-el [ch msg cb]
+  (send-msgs-with-cb-in-el ch [msg] cb))
+
+(defn- client-send-with-fn [send-fn ch-agent factory-fn m cb]
+  (let [ch @ch-agent]
       (if (client-channel-valid? ch)
-        (send-msg-with-cb-in-el ch msg cb)
+        (send-fn ch m cb)
         (clojure.core/send-off ch-agent
                                (fn [ch]
                                  (let [ch (if (client-channel-valid? ch)
@@ -62,7 +71,20 @@
                                             (do
                                               (when ch (.close ^Channel ch))
                                               (factory-fn)))]
-                                   (send-msg-with-cb-in-el ch msg cb)))))))
+                                   (send-fn ch m cb)))))))
+
+(deftype ClientSocketChannel [ch-agent factory-fn stopped]
+  LinkMessageChannel
+  (id [this]
+    (channel-id @ch-agent))
+  (send! [this msg]
+    (send!* this msg nil))
+  (sends! [this msgs]
+    (sends!* this msgs nil))
+  (send!* [this msg cb]
+    (client-send-with-fn send-msg-with-cb-in-el ch-agent factory-fn msg cb))
+  (sends!* [this msgs cb]
+    (client-send-with-fn send-msgs-with-cb-in-el ch-agent factory-fn msgs cb))
   (channel-addr [this]
     (.localAddress ^Channel @ch-agent))
   (remote-addr [this]
@@ -80,8 +102,12 @@
     (channel-id this))
   (send! [this msg]
     (send!* this msg nil))
+  (sends! [this msgs]
+    (sends!* this msgs nil))
   (send!* [this msg cb]
-    (send-msg-with-cb-in-el ch msg cb))
+    (send-msg-with-cb-in-el this msg cb))
+  (sends!* [this msgs cb]
+    (send-msgs-with-cb-in-el this msgs cb))
   (channel-addr [this]
     (.localAddress this))
   (remote-addr [this]
