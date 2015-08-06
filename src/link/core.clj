@@ -81,10 +81,7 @@
   (send! [this msg]
     (send!* this msg nil))
   (send!* [this msg cb]
-    (let [cf (.writeAndFlush this msg)]
-      (when cb
-        (.addListener ^ChannelFuture cf (reify GenericFutureListener
-                                          (operationComplete [this f] (cb f)))))))
+    (send-msg-with-cb-in-el ch msg cb))
   (channel-addr [this]
     (.localAddress this))
   (remote-addr [this]
