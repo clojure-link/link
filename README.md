@@ -168,7 +168,7 @@ Create a websocket handler:
     (on-text [ch string]
       ;; you can use (text), (binary), (ping), (pong) to generate
       ;; different types of response
-      (send ch (text string)))
+      (send! ch (text string)))
     (on-binary [ch ^ByteBuf bytes])
     (on-ping [ch ^ByteBuf bytes])
     (on-pong [ch ^ByteBuf bytes])))
