@@ -38,17 +38,17 @@
   ([^Channel ch info]
    (.set (.attr ch handshake-info-key) info)))
 
-(def websocket-handshake-message-handler
+(defn websocket-handshake-message-handler []
   (proxy [ChannelInboundHandlerAdapter] []
     (channelRead [ctx req]
-      ;; req is actually a FullHttpRequest object
-      (let [uri (.getUri ^FullHttpRequest req)
-            headers (.headers ^FullHttpRequest req)]
-        (handshake-info (.channel ctx) {:uri uri
-                                        :headers headers}))
-      (.remove (.pipeline ctx) this)
-      (proxy-super channelRead ctx req))
-    (isSharable [] true)))
+      (when (instance? FullHttpRequest req)
+        ;; req is actually a FullHttpRequest object
+        (let [uri (.getUri ^FullHttpRequest req)
+              headers (.headers ^FullHttpRequest req)]
+          (handshake-info (.channel ctx) {:uri uri
+                                          :headers headers}))
+        (.remove (.pipeline ctx) this))
+      (proxy-super channelRead ctx req))))
 
 (defn server-protocol-handler
   "A server protocol handler that let user to process ping/pong"
@@ -75,7 +75,7 @@
   [(fn [_] (HttpRequestDecoder.))
    (fn [_] (HttpObjectAggregator. 65536))
    (fn [_] (HttpResponseEncoder.))
-   websocket-handshake-message-handler
+   (fn [_] (websocket-handshake-message-handler))
    (fn [_] (server-protocol-handler path subprotocols
                                    allow-extensions max-frame-size))])
 
