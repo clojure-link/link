@@ -47,6 +47,7 @@
               headers (.headers ^FullHttpRequest req)]
           (handshake-info (.channel ctx) {:uri uri
                                           :headers headers}))
+        ;; FIXME: use pipeline.remove(ctx) which is faster
         (.remove (.pipeline ctx) this))
       (proxy-super channelRead ctx req))))
 
