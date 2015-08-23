@@ -150,7 +150,9 @@
             (instance? PingWebSocketFrame msg#)
             (if (:on-ping handlers#)
               ((:on-ping handlers#) ch# (.content ^PingWebSocketFrame msg#))
-              (.writeAndFlush ch# (pong (.content ^PongWebSocketFrame msg#))))
+              (do
+                (.retain ^PingWebSocketFrame msg#)
+                (.writeAndFlush ch# (pong (.content ^PingWebSocketFrame msg#)))))
 
             (and (instance? PongWebSocketFrame msg#) (:on-pong handlers#))
             ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))))))))
