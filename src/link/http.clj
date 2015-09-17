@@ -2,7 +2,8 @@
   (:use [link core tcp])
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
-  (:require [link.threads :as threads])
+  (:require [link.threads :as threads]
+            [clojure.tools.logging :as logging])
   (:import [java.io File InputStream PrintStream])
   (:import [java.net InetSocketAddress])
   (:import [io.netty.buffer
@@ -143,6 +144,7 @@
                  (http-handle resp ch req)))
 
    (on-error [ch exc]
+             (logging/warn exc "Uncaught exception")
              (http-on-error ch exc debug))))
 
 (defn http-server [port ring-fn
