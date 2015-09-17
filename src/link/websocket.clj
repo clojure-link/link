@@ -142,7 +142,7 @@
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (let [ch# (.channel ctx#)]
            (cond
-            (and (map? msg#) (:on-message handlers#))
+            (:on-message handlers#)
             ((:on-message handlers#) ch# msg#)
 
             (and (instance? TextWebSocketFrame msg#) (:on-text handlers#))
