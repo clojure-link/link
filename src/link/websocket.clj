@@ -104,7 +104,7 @@
 ;; make message receive handler
 (make-handler-macro text)
 (make-handler-macro binary)
-(make-handler-macro unserialized)
+(make-handler-macro message)
 (make-handler-macro ping)
 (make-handler-macro pong)
 (make-handler-macro error)
@@ -142,8 +142,8 @@
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (let [ch# (.channel ctx#)]
            (cond
-            (and (map? msg#) (:on-unserialized handlers#))
-            ((:on-unserialized handlers#) ch# msg#)
+            (and (map? msg#) (:on-message handlers#))
+            ((:on-message handlers#) ch# msg#)
 
             (and (instance? TextWebSocketFrame msg#) (:on-text handlers#))
             ((:on-text handlers#) ch# (.text ^TextWebSocketFrame msg#))
