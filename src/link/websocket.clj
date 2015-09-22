@@ -142,9 +142,6 @@
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
          (let [ch# (.channel ctx#)]
            (cond
-            (:on-message handlers#)
-            ((:on-message handlers#) ch# msg#)
-
             (and (instance? TextWebSocketFrame msg#) (:on-text handlers#))
             ((:on-text handlers#) ch# (.text ^TextWebSocketFrame msg#))
 
@@ -159,7 +156,10 @@
                 (.writeAndFlush ch# (pong (.content ^PingWebSocketFrame msg#)))))
 
             (and (instance? PongWebSocketFrame msg#) (:on-pong handlers#))
-            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))))))))
+            ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))
+
+            (:on-message handlers#)
+            ((:on-message handlers#) ch# msg#)))))))
 
 (defmacro create-websocket-handler [& body]
   `(create-handler1 true ~@body))
