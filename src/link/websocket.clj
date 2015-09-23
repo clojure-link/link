@@ -1,7 +1,7 @@
 (ns link.websocket
   (:use [link tcp util])
   (:import [java.util List])
-  (:import [io.netty.buffer ByteBuf Unpooled])
+  (:import [io.netty.buffer ByteBuf Unpooled ByteBufAllocator])
   (:import [io.netty.handler.codec.http
             HttpResponseEncoder
             HttpRequestDecoder
@@ -45,7 +45,7 @@
         ;; req is actually a FullHttpRequest object
         (let [uri (.getUri ^FullHttpRequest req)
               headers (.headers ^FullHttpRequest req)]
-          (handshake-info (.channel ctx) {:uri uri
+          (handshake-info (.channel ^ChannelHandlerContext ctx) {:uri uri
                                           :headers headers}))
         ;; FIXME: use pipeline.remove(ctx) which is faster
         (.remove (.pipeline ctx) this))
@@ -80,14 +80,23 @@
    (fn [_] (server-protocol-handler path subprotocols
                                    allow-extensions max-frame-size))])
 
-(defn text [^String s]
-  (TextWebSocketFrame. s))
+(defn text
+  ([^String s] (TextWebSocketFrame. s))
+  ([^ByteBufAllocator alloc ^String s]
+   (let [bytes (.getBytes s "UTF-8")
+         buf (.ioBuffer alloc (alength bytes))]
+     (.writeBytes ^ByteBuf buf ^bytes bytes)
+     (TextWebSocketFrame. buf))))
 
 (defn binary [^ByteBuf bytes]
   (BinaryWebSocketFrame. bytes))
 
-(defn binary2 [^bytes bytes]
-  (binary (Unpooled/wrappedBuffer ^bytes bytes)))
+(defn binary2
+  ([^bytes bytes] (binary (Unpooled/wrappedBuffer ^bytes bytes)))
+  ([^ByteBufAllocator alloc ^bytes bytes]
+   (let [buf (.ioBuffer alloc (alength bytes))]
+     (.writeBytes ^ByteBuf buf ^bytes bytes)
+     (binary buf))))
 
 (defn ping
   ([] (ping (Unpooled/buffer 0)))
