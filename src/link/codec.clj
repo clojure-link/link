@@ -3,8 +3,7 @@
   (:import [java.nio ByteBuffer])
   (:import [java.util List])
   (:import [io.netty.buffer
-            ByteBuf
-            Unpooled])
+            ByteBuf])
   (:import [io.netty.channel
             ChannelHandlerContext
             ChannelPromise])
