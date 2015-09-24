@@ -84,7 +84,7 @@
   ([^String s] (TextWebSocketFrame. s))
   ([^ByteBufAllocator alloc ^String s]
    (let [bytes (.getBytes s "UTF-8")
-         buf (.ioBuffer alloc (alength bytes))]
+         buf (.buffer alloc (alength bytes))]
      (.writeBytes ^ByteBuf buf ^bytes bytes)
      (TextWebSocketFrame. buf))))
 
@@ -94,7 +94,7 @@
 (defn binary2
   ([^bytes bytes] (binary (Unpooled/wrappedBuffer ^bytes bytes)))
   ([^ByteBufAllocator alloc ^bytes bytes]
-   (let [buf (.ioBuffer alloc (alength bytes))]
+   (let [buf (.buffer alloc (alength bytes))]
      (.writeBytes ^ByteBuf buf ^bytes bytes)
      (binary buf))))
 
