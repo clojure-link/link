@@ -4,6 +4,7 @@
   (:import [java.net InetSocketAddress InetAddress])
   (:import [io.netty.channel
             Channel
+            ChannelId
             ChannelFuture
             ChannelHandlerContext
             ChannelOption
@@ -28,9 +29,7 @@
        ":" (.getPort addr)))
 
 (defn- channel-id [^Channel ch]
-  (str (addr-str (.localAddress ch))
-       "->"
-       (addr-str (.remoteAddress ch))))
+  (.asShortText ^ChannelId (.id ch)))
 
 (deftype ClientSocketChannel [ch-agent factory-fn stopped]
   LinkMessageChannel
