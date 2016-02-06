@@ -1,10 +1,10 @@
-(def netty-version "4.1.0.Beta8")
+(def netty-version "4.1.0.CR2")
 (defproject link "0.9.0-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.6.0"]
+  :dependencies [[org.clojure/clojure "1.8.0"]
                  [io.netty/netty-buffer ~netty-version]
                  [io.netty/netty-codec-http ~netty-version]
                  [io.netty/netty-codec ~netty-version]
