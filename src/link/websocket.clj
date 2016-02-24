@@ -81,7 +81,7 @@
                                    allow-extensions max-frame-size))])
 
 (defn text
-  ([^String s] (TextWebSocketFrame. s))
+  ([^ByteBuf buf] (TextWebSocketFrame. buf))
   ([^ByteBufAllocator alloc ^String s]
    (let [bytes (.getBytes s "UTF-8")
          buf (.buffer alloc (alength bytes))]
