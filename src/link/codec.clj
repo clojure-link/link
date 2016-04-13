@@ -161,6 +161,12 @@
                  (if-let [r0 ((:decoder (first c)) buffer)]
                    (recur (rest c) (conj r r0))))))))
 
+(defcodec const
+  (encoder [options data ^ByteBuf buffer]
+           buffer)
+  (decoder [options ^ByteBuf buffer]
+           (first options)))
+
 (defn encode*
   ([codec data ^ByteBuf buffer]
      ((:encoder codec) data buffer)))

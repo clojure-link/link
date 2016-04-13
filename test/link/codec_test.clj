@@ -31,7 +31,11 @@
                                     (byte)
                                     (int16)
                                     (int64)
-                                    (string :prefix (int32) :encoding :ascii))))
+                                    (string :prefix (int32) :encoding :ascii))
+       [1 :hello "yes"] (frame
+                         (const 1)
+                         (const :hello)
+                         (const "yes"))))
 
 (deftest test-nil-results
   (let [buffer (Unpooled/buffer)
