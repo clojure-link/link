@@ -35,7 +35,8 @@
        [1 :hello "yes"] (frame
                          (const 1)
                          (const :hello)
-                         (const "yes"))))
+                         (const "yes"))
+       [[1] [2] [3]] (counted :prefix (int16) :body (frame (byte)))))
 
 (deftest test-nil-results
   (let [buffer (Unpooled/buffer)

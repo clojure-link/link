@@ -161,6 +161,19 @@
                  (if-let [r0 ((:decoder (first c)) buffer)]
                    (recur (rest c) (conj r r0))))))))
 
+(defcodec counted
+  (encoder [options data ^ByteBuf buffer]
+           (let [length (count data)
+                 {length-codec :prefix body-codec :body} options]
+             ((:encoder length-codec) length buffer)
+             (doseq [frm data]
+               ((:encoder body-codec) frm buffer))
+             buffer))
+  (decoder [options ^ByteBuf buffer]
+           (let [{length-codec :prefix body-codec :body} options
+                 length ((:decoder length-codec) buffer)]
+             (mapv (fn [_] ((:decoder body-codec) buffer)) (range length)))))
+
 (defcodec const
   (encoder [options data ^ByteBuf buffer]
            buffer)
