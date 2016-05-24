@@ -27,7 +27,7 @@
   (str (.. addr (getAddress) (getHostAddress))
        ":" (.getPort addr)))
 
-(defn- channel-id [^Channel ch]
+(defn channel-id [^Channel ch]
   (str (addr-str (.localAddress ch))
        "->"
        (addr-str (.remoteAddress ch))))
