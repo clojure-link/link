@@ -25,7 +25,7 @@
 ;; :handler the handler created by create-handler or a factory
 ;; function for stateful handler
 ;; :executor the executor that handler will run on
-(defn- channel-init [handler-specs]
+(defn channel-init [handler-specs]
   (proxy [ChannelInitializer] []
     (initChannel [^Channel ch]
       (let [pipeline ^ChannelPipeline (.pipeline ch)]
