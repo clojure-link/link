@@ -78,21 +78,24 @@
               ;; length prefix string
               (nil? delimiter)
               (do
-                (if-let [byte-length ((:decoder prefix) buffer)]
-                  (if-not (> byte-length (.readableBytes buffer))
+                (when-let [byte-length ((:decoder prefix) buffer)]
+                  (when-not (> byte-length (.readableBytes buffer))
                     (let [bytes (byte-array byte-length)]
                       (.readBytes buffer ^bytes bytes)
                       (String. bytes encoding)))))
 
               ;; delimiter based string
               (nil? prefix)
-              (do
-                (let [dbytes (.getBytes ^String delimiter encoding)
-                      dlength (find-delimiter buffer dbytes)
-                      slength (- dlength (alength ^bytes dbytes))
-                      sbytes (byte-array slength)]
-                  (.readBytes buffer ^bytes sbytes)
-                  (String. sbytes encoding)))))))
+              (let [dbytes (.getBytes ^String delimiter encoding)
+                    dmlength (alength ^bytes dbytes)
+                    dlength (find-delimiter buffer dbytes)
+                    slength (- dlength dmlength)]
+                (when (> slength 0)
+                  (let [sbytes (byte-array slength)]
+                    (.readBytes buffer ^bytes sbytes)
+                    ;; move readerIndex
+                    (.readerIndex buffer (+ dmlength (.readerIndex buffer)))
+                    (String. sbytes encoding))))))))
 
 (defcodec byte-block
   (encoder [options ^ByteBuffer data ^ByteBuf buffer]
