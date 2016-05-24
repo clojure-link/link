@@ -28,7 +28,7 @@
   (str (.. addr (getAddress) (getHostAddress))
        ":" (.getPort addr)))
 
-(defn- channel-id [^Channel ch]
+(defn channel-id [^Channel ch]
   (.asShortText ^ChannelId (.id ch)))
 
 (deftype ClientSocketChannel [ch-agent factory-fn stopped]
