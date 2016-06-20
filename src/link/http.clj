@@ -43,9 +43,9 @@
 (defn ring-request [ch req]
   (let [server-addr (channel-addr ch)
         uri (.getUri ^FullHttpRequest req)]
-    {:server-addr (.getHostName ^InetSocketAddress server-addr)
+    {:server-addr (.getHostString ^InetSocketAddress server-addr)
      :server-port (.getPort ^InetSocketAddress server-addr)
-     :remote-addr (.getHostName ^InetSocketAddress (remote-addr ch))
+     :remote-addr (.getHostString ^InetSocketAddress (remote-addr ch))
      :uri (find-request-uri uri)
      :query-string (find-query-string uri)
      :scheme :http
