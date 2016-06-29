@@ -15,7 +15,7 @@
       (is (= raddr (remote-addr ch)))
       (send! ch :a)
       (send! ch :b)
-      (send! ch :c)
+      (send!* ch :c (fn [_]))
       (is (valid? ch))
       (close! ch)
       (is (not (valid? ch)))
