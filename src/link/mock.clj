@@ -1,6 +1,6 @@
 (ns link.mock
   (:require [link.core :refer :all])
-  (:import (io.netty.channel DefaultChannelPromise)
+  (:import (io.netty.channel DefaultChannelPromise ChannelHandler)
            (io.netty.channel.embedded EmbeddedChannel)))
 
 (deftype MockChannel [chid local-addr remote-addr msgs stopped?]
@@ -11,7 +11,7 @@
   (send!* [this msg cb]
     (swap! msgs conj msg)
     (when cb
-      (let [promise (DefaultChannelPromise. (EmbeddedChannel.))]
+      (let [promise (DefaultChannelPromise. (EmbeddedChannel. (make-array ChannelHandler 0)))]
         (.setSuccess promise)
         (cb promise))))
   (close! [this]
