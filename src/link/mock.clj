@@ -11,7 +11,7 @@
     (swap! msgs conj msg)
     (when cb
       (cb (reify Future
-            ))))
+            (isSuccess [_] true)))))
   (close! [this]
     (reset! stopped? true))
   (valid? [this]
