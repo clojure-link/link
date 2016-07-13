@@ -1,5 +1,5 @@
 (def netty-version "4.1.1.Final")
-(defproject link "0.9.0-SNAPSHOT"
+(defproject link "0.9.0"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
