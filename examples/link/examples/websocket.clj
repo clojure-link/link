@@ -6,7 +6,7 @@
 (def handler
   (create-websocket-handler
    (on-text [ch msg]
-            (send! ch (text (.alloc ch) msg)))
+            (send! ch msg))
    (on-error [ch e]
              (.printStackTrace e))))
 
@@ -14,5 +14,6 @@
   (println ";; Starting websocket server")
   (tcp-server 8080
               (conj (websocket-codecs "/" :compression? true)
+                    websocket-auto-frame-encoder
                     handler))
   (println ";; Websocket server started on 8080"))
