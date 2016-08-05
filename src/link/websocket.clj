@@ -186,14 +186,15 @@
     (write [ctx msg promise]
       (cond
        (instance? String msg)
-       (.write ^ChannelHandlerContext ctx (text msg) promise)
+       (.write ^ChannelHandlerContext ctx
+               (text (.alloc ^ChannelHandlerContext ctx) msg) promise)
 
        (instance? ByteBuf msg)
        (.write ^ChannelHandlerContext ctx (binary msg) promise)
 
        (= byte-array-type (type msg))
        (.write ^ChannelHandlerContext ctx
-               (binary2 msg) promise)
+               (binary2 (.alloc ^ChannelHandlerContext ctx) msg) promise)
 
        :else
        ;; super magic: get rid of reflection warning in proxy-super
