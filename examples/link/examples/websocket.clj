@@ -13,6 +13,6 @@
 (defn -main [& args]
   (println ";; Starting websocket server")
   (tcp-server 8080
-              (conj (websocket-codecs "/")
+              (conj (websocket-codecs "/" :compression? true)
                     handler))
   (println ";; Websocket server started on 8080"))
