@@ -168,7 +168,10 @@
             ((:on-pong handlers#) ch# (.content ^PongWebSocketFrame msg#))
 
             (:on-message handlers#)
-            ((:on-message handlers#) ch# msg#)))))))
+            ((:on-message handlers#) ch# msg#)
+
+            :else
+            (.fireChannelRead ctx# (.retain msg#))))))))
 
 (defmacro create-websocket-handler [& body]
   `(create-handler1 true ~@body))
