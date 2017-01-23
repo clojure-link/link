@@ -128,24 +128,28 @@
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-open handlers#)]
-           (handler# (.channel ctx#)))
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelActive ctx#)))
          (.fireChannelActive ctx#))
 
        (channelInactive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-close handlers#)]
-           (handler# (.channel ctx#)))
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelInactive ctx#)))
          (.fireChannelInactive ctx#))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
          (if-let [handler# (:on-error handlers#)]
-           (handler# (.channel ctx#) e#)
+           (when (false? (handler# (.channel ctx#) e#))
+             (.fireExceptionCaught  ctx# e#))
            (.fireExceptionCaught  ctx# e#)))
 
        (userEventTriggered [^ChannelHandlerContext ctx# evt#]
          (if (and (= evt# WebSocketServerProtocolHandler$ServerHandshakeStateEvent/HANDSHAKE_COMPLETE)
                   (:on-handshake-complete handlers#))
-           ((:on-handshake-complete handlers#) (.channel ctx#))
+           (when (false? ((:on-handshake-complete handlers#) (.channel ctx#)))
+             (.fireUserEventTriggered ctx# evt#))
            (.fireUserEventTriggered ctx# evt#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
