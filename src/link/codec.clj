@@ -175,7 +175,12 @@
   (decoder [options ^ByteBuf buffer]
            (let [{length-codec :prefix body-codec :body} options
                  length ((:decoder length-codec) buffer)]
-             (mapv (fn [_] ((:decoder body-codec) buffer)) (range length)))))
+             (when length
+               (loop [idx 0 results []]
+                 (if (== idx length)
+                   results
+                   (when-let [data ((:decoder body-codec) buffer)]
+                     (recur (inc idx) (conj results data)))))))))
 
 (defcodec const
   (encoder [options data ^ByteBuf buffer]
