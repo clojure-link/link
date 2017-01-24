@@ -103,8 +103,9 @@
                  byte-length (if (nil? data) 0 (.readableBytes data))
                  encoded-length (encode-length-fn byte-length)]
              ((:encoder prefix) encoded-length buffer)
-             (if-not (nil? data)
-               (.writeBytes buffer ^ByteBuf data))
+             (when-not (nil? data)
+               (.writeBytes buffer ^ByteBuf data)
+               (.release ^ByteBuf data))
              buffer))
   (decoder [options ^ByteBuf buffer]
            (let [{prefix :prefix decode-length-fn :decode-length-fn} options
