@@ -1,6 +1,5 @@
 (ns link.codec
   (:refer-clojure :exclude [byte float double])
-  (:import [java.nio ByteBuffer])
   (:import [java.util List])
   (:import [io.netty.buffer
             ByteBuf])
@@ -98,25 +97,23 @@
                     (String. sbytes encoding))))))))
 
 (defcodec byte-block
-  (encoder [options ^ByteBuffer data ^ByteBuf buffer]
+  (encoder [options ^ByteBuf data ^ByteBuf buffer]
            (let [{prefix :prefix encode-length-fn :encode-length-fn} options
                  encode-length-fn (or encode-length-fn identity)
-                 byte-length (if (nil? data) 0 (.remaining data))
+                 byte-length (if (nil? data) 0 (.readableBytes data))
                  encoded-length (encode-length-fn byte-length)]
              ((:encoder prefix) encoded-length buffer)
-             (if-not (nil? data)
-               (.writeBytes buffer ^ByteBuffer data))
+             (when-not (nil? data)
+               (.writeBytes buffer ^ByteBuf data)
+               (.release ^ByteBuf data))
              buffer))
   (decoder [options ^ByteBuf buffer]
            (let [{prefix :prefix decode-length-fn :decode-length-fn} options
                  decode-length-fn (or decode-length-fn identity)
                  byte-length (decode-length-fn ((:decoder prefix) buffer))]
-             (if-not (or (nil? byte-length)
-                         (> byte-length (.readableBytes buffer)))
-               (let [local-buffer (ByteBuffer/allocate byte-length)]
-                 (.readBytes buffer ^ByteBuffer local-buffer)
-                 (.rewind local-buffer)
-                 local-buffer)))))
+             (when-not (or (nil? byte-length)
+                           (> byte-length (.readableBytes buffer)))
+               (.readRetainedSlice buffer byte-length)))))
 
 (def ^{:private true} reversed-map
   (memoize

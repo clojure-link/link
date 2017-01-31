@@ -46,3 +46,13 @@
 
 
     (is (nil? (decode* codec buffer)))))
+
+(deftest test-byte-block
+  (let [buffer (Unpooled/buffer)
+        bytes (Unpooled/wrappedBuffer (.getBytes "Hello World" "UTF-8"))
+        codec (byte-block :prefix (uint16))]
+    (encode* codec bytes buffer)
+    (let [decoded-buffer (decode* codec buffer)
+          bytes (byte-array (.readableBytes decoded-buffer))]
+      (.readBytes decoded-buffer bytes)
+      (is (= "Hello World" (String. bytes "UTF-8"))))))
