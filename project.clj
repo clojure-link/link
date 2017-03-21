@@ -1,4 +1,4 @@
-(def netty-version "4.1.8.Final")
+(def netty-version "4.1.9.Final")
 (defproject link "0.9.7-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
