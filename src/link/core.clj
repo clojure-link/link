@@ -97,18 +97,21 @@
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-active handlers#)]
-           (handler# (.channel ctx#)))
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelActive ctx#)))
          (.fireChannelActive ctx#))
 
        (channelInactive [^ChannelHandlerContext ctx#]
          (when-let [handler# (:on-inactive handlers#)]
-           (handler# (.channel ctx#)))
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelInactive ctx#)))
          (.fireChannelInactive ctx#))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
          (if-let [handler# (:on-error handlers#)]
-           (handler# (.channel ctx#) e#)
+           (when (false? (handler# (.channel ctx#) e#))
+             (.fireExceptionCaught ctx# e#))
            (.fireExceptionCaught ctx# e#)))
 
        (channelRead0 [^ChannelHandlerContext ctx# msg#]
@@ -117,7 +120,8 @@
 
        (userEventTriggered [^ChannelHandlerContext ctx# evt#]
          (if-let [handler# (:on-event handlers#)]
-           (handler# (.channel ctx#) evt#)
+           (when (false? (handler# (.channel ctx#) evt#))
+             (.fireUserEventTriggered ctx# evt#))
            (.fireUserEventTriggered ctx# evt#))))))
 
 (defmacro create-handler [& body]
