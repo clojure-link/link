@@ -12,7 +12,8 @@
                  [io.netty/netty-handler ~netty-version]
                  [io.netty/netty-transport ~netty-version]
                  [org.clojure/tools.logging "0.3.1"]]
-  :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}}
+  :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}
+             :examples {:source-paths ["examples"]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
   :global-vars {*warn-on-reflection* true}

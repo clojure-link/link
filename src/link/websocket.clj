@@ -20,6 +20,8 @@
             WebSocketClientHandshaker
             WebSocketClientHandshakerFactory
             WebSocketVersion]
+           [io.netty.handler.codec.http.websocketx.extensions.compression
+            WebSocketServerCompressionHandler]
            [io.netty.channel
             Channel
             ChannelPipeline
@@ -45,9 +47,8 @@
         ;; req is actually a FullHttpRequest object
         (let [uri (.getUri ^FullHttpRequest req)
               headers (.headers ^FullHttpRequest req)]
-          (handshake-info (.channel ^ChannelHandlerContext ctx) {:uri uri
-                                          :headers headers}))
-        ;; FIXME: use pipeline.remove(ctx) which is faster
+          (handshake-info (.channel ^ChannelHandlerContext ctx)
+                          {:uri uri :headers headers}))
         (.remove (.pipeline ctx) this))
       (proxy-super channelRead ctx req))))
 
@@ -69,16 +70,19 @@
 (defn websocket-codecs
   [path & {:keys [max-frame-size
                   allow-extensions
-                  subprotocols]
+                  subprotocols
+                  compression?]
            :or {max-frame-size 65536
-                allow-extensions false}}]
+                allow-extensions true
+                compression? false}}]
   ;; web socket handler is of course stateful
-  [(fn [_] (HttpRequestDecoder.))
-   (fn [_] (HttpObjectAggregator. 65536))
-   (fn [_] (HttpResponseEncoder.))
-   (fn [_] (websocket-handshake-message-handler))
-   (fn [_] (server-protocol-handler path subprotocols
-                                   allow-extensions max-frame-size))])
+  (vec (concat [(fn [_] (HttpRequestDecoder.))
+                (fn [_] (HttpObjectAggregator. 65536))
+                (fn [_] (HttpResponseEncoder.))
+                (fn [_] (websocket-handshake-message-handler))]
+               (when compression? [(fn [_] (WebSocketServerCompressionHandler.))])
+               [(fn [_] (server-protocol-handler path subprotocols
+                                                allow-extensions max-frame-size))])))
 
 (defn text
   ([^ByteBuf buf] (TextWebSocketFrame. buf))
@@ -189,14 +193,15 @@
     (write [ctx msg promise]
       (cond
        (instance? String msg)
-       (.write ^ChannelHandlerContext ctx (text msg) promise)
+       (.write ^ChannelHandlerContext ctx
+               (text (.alloc ^ChannelHandlerContext ctx) msg) promise)
 
        (instance? ByteBuf msg)
        (.write ^ChannelHandlerContext ctx (binary msg) promise)
 
        (= byte-array-type (type msg))
        (.write ^ChannelHandlerContext ctx
-               (binary2 msg) promise)
+               (binary2 (.alloc ^ChannelHandlerContext ctx) msg) promise)
 
        :else
        ;; super magic: get rid of reflection warning in proxy-super
