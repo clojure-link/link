@@ -129,14 +129,14 @@
     (close! ch)))
 
 (defprotocol ResponseHandle
-  (http-handle [req resp ch]))
+  (http-handle [resp ch req]))
 
 (extend-protocol ResponseHandle
   APersistentMap
   (http-handle [resp ch _]
     (send! ch (ring-response resp))))
 
-(defn create-http-handler-from-ring [ring-fn debug]
+(defn create-http-handler-from-ring [ring-fn debug?]
   (create-handler
    (on-message [ch msg]
                (let [req (ring-request ch msg)
@@ -145,11 +145,25 @@
 
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
-             (http-on-error ch exc debug))))
+             (http-on-error ch exc debug?))))
+
+(defn create-http-handler-from-async-ring [ring-fn debug?]
+  (create-handler
+   (on-message [ch msg]
+               (let [req (ring-request ch msg)
+                     resp-fn (fn [resp]
+                               (http-handle resp ch req))
+                     raise-fn (fn [error]
+                                (http-on-error ch error debug?))]
+                 (ring-fn req resp-fn raise-fn)))
+
+   (on-error [ch exc]
+             (logging/warn exc "Uncaught exception")
+             (http-on-error ch exc debug?))))
 
 (defn http-server [port ring-fn
                    & {:keys [threads executor debug host
-                             max-request-body
+                             max-request-body async?
                              options]
                       :or {threads nil
                            executor nil
@@ -157,7 +171,9 @@
                            host "0.0.0.0"
                            max-request-body 1048576}}]
   (let [executor (if threads (threads/new-executor threads) executor)
-        ring-handler (create-http-handler-from-ring ring-fn debug)
+        ring-handler (if async?
+                       (create-http-handler-from-async-ring ring-fn debug)
+                       (create-http-handler-from-ring ring-fn debug))
         handlers [(fn [_] (HttpRequestDecoder.))
                   (fn [_] (HttpObjectAggregator. max-request-body))
                   (fn [_] (HttpResponseEncoder.))
