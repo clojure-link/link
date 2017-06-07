@@ -139,9 +139,10 @@
 (defn create-http-handler-from-ring [ring-fn debug]
   (create-handler
    (on-message [ch msg]
-               (let [req (ring-request ch msg)
-                     resp (or (ring-fn req) {})]
-                 (http-handle resp ch req)))
+               (when (valid? ch)
+                 (let [req  (ring-request ch msg)
+                       resp (or (ring-fn req) {})]
+                   (http-handle resp ch req))))
 
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
