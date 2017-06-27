@@ -7,3 +7,6 @@
         body-sym (symbol "body")]
     `(defmacro ~symbol-name [~args-vec-sym & ~body-sym]
        `{(keyword ~~handler-name) (fn ~~args-vec-sym ~@~body-sym)})))
+
+(defn derefable? [t]
+  (instance? clojure.lang.IDeref t))

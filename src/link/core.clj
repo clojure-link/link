@@ -7,7 +7,6 @@
             ChannelId
             ChannelFuture
             ChannelHandlerContext
-            ChannelOption
             SimpleChannelInboundHandler])
   (:import [io.netty.channel.socket.nio NioSocketChannel])
   (:import [io.netty.util.concurrent GenericFutureListener]))

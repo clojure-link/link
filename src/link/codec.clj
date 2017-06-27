@@ -1,5 +1,6 @@
 (ns link.codec
   (:refer-clojure :exclude [byte float double])
+  (:require [link.util :as util])
   (:import [java.util List])
   (:import [io.netty.buffer
             ByteBuf])
@@ -123,10 +124,12 @@
 (defcodec enum
   (encoder [options data ^ByteBuf buffer]
            (let [[codec mapping] options
+                 mapping (if (util/derefable? mapping) @mapping mapping)
                  value (get mapping data)]
              ((:encoder codec) value buffer)))
   (decoder [options ^ByteBuf buffer]
            (let [[codec mapping] options
+                 mapping (if (util/derefable? mapping) @mapping mapping)
                  mapping (reversed-map mapping)
                  value ((:decoder codec) buffer)]
              (get mapping value))))
