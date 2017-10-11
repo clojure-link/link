@@ -95,16 +95,16 @@
      (proxy [SimpleChannelInboundHandler] []
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
-         (when-let [handler# (:on-active handlers#)]
-           (when (false? (handler# (.channel ctx#)))
-             (.fireChannelActive ctx#)))
-         (.fireChannelActive ctx#))
+         (if-let [handler# (:on-active handlers#)]
+           (when (false? )
+             (.fireChannelActive ctx#))
+           (.fireChannelActive ctx#)))
 
        (channelInactive [^ChannelHandlerContext ctx#]
-         (when-let [handler# (:on-inactive handlers#)]
+         (if-let [handler# (:on-inactive handlers#)]
            (when (false? (handler# (.channel ctx#)))
-             (.fireChannelInactive ctx#)))
-         (.fireChannelInactive ctx#))
+             (.fireChannelInactive ctx#))
+           (.fireChannelInactive ctx#)))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
