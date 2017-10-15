@@ -27,7 +27,7 @@ handler and don't have to read the message byte by byte, and  worry
 about TCP framing.
 
 ```clojure
-user> (use 'link.codec)
+user> (require '[link.codec :refer :all])
 
 ;; create a custom codec: [version target-id string-message]
 user> (def custom-codec
@@ -36,12 +36,16 @@ user> (def custom-codec
     (int32)
     (string :encoding :utf8 :prefix (uint16))))
 
-;; encode. note that you don't have to call `encode*` and `decode*` by
-;; youself, link does it for you.
-user> (encode* custom-codec [1 348 "hello world"])
-#<UnpooledHeapByteBuf UnpooledHeapByteBuf(ridx: 0, widx: 18, cap: 256)>
+;; create an empty buffer
+user> (def buf (unpooled-buffer))
 
-user> (decode* custom-codec *1)
+;; encode clojure data structure on to given buffer, by using codec.
+;; note that you don't have to call `encode*` and `decode*` by
+;; youself, link does it for you.
+user> (encode* custom-codec [1 348 "hello world"] buf)
+#object[io.netty.buffer.UnpooledByteBufAllocator$InstrumentedUnpooledUnsafeHeapByteBuf 0x4eb69819 "UnpooledByteBufAllocator$InstrumentedUnpooledUnsafeHeapByteBuf(ridx: 0, widx: 18, cap: 256)"]
+
+user> (decode* custom-codec buf)
 [1 348 "hello world"]
 ```
 
@@ -56,20 +60,21 @@ message. Link has provided you a dsl that is easier to understand. And
 also hide complexity of Netty's default handler API.
 
 ```clojure
-(use 'link.core)
+(require '[link.core :refer :all])
 
 (def echo-handler
   (create-handler
     (on-message [ch msg]
-      (send ch msg))))
+      (send! ch msg))))
 ```
 
-In link 0.5, there are four events you can process in handler
+There are 5 events you can process in a link handler:
 
 * `(on-active [ch])` when channel is open, bound or connected
 * `(on-inacitve [ch])` when channel is no longer open, bound or connected
 * `(on-message [ch msg])` when a packet is read in
-* `(on-error [ch e])` when exception occurs in I/O thread
+* `(on-error [ch e])` when exception occurs on I/O thread
+* `(on-event [ch evt])` when netty user defined event triggered
 
 And for the channel `ch`, you can call following functions as defined
 by `LinkMessageChannel` protocol.
@@ -87,9 +92,10 @@ link only supports non-blocking server and client.
 To start a server, you can provide a few argument to customize it:
 
 ```clojure
-(use '[link threads tcp])
+(require '[link.tcp :refer :all])
+(require '[link.threads :refer :all])
 
-;; I just demo the usage here, there is no need to run a echo-handler
+;; Just to demo the usage here, there is no need to run a echo-handler
 ;; in a thread pool.
 (def handler-spec {:handler echo-handler :executor (new-executor 10)})
 
@@ -97,17 +103,19 @@ To start a server, you can provide a few argument to customize it:
 (tcp-server 8081 [handler-spec]
             :options {:so-reuseaddr true} ;; netty, ip, tcp and socket options
             :host ;; if to bind, default "0.0.0.0"
-
+)
 ```
 
-From link 0.7, ssl handler and codecs are all handlers. You will need
+From link 0.7, ssl handler and codecs are all normal handlers. You will need
 to put them at correct position of handlers.
 
-See a full list of options in `link.core/channel-option`. You need to
-prefixing a `clild-` to specify option for child channels:
-`:child-tcp-nodelay`
+To see a full list of TCP options, you can find it on [Netty
+doc](http://netty.io/4.1/api/io/netty/channel/ChannelOption.html). Change
+the option name to lowercase and replace the underscore with dash, as
+in Clojure way. Prefixing a `clild-` to specify option for child
+channels: `:child-tcp-nodelay`.
 
-In link 0.5, you can stop a server by
+You can stop a server by
 ``` clojure
 ;; calling stop-server with the value returned by tcp-server
 (stop-server *1)
@@ -128,13 +136,19 @@ large number of connections.
 Create a client
 
 ```clojure
-(tcp-client client-factory "localhost" 8081)
+(def client (tcp-client client-factory "localhost" 8081))
 ```
 
 The value returned by `tcp-client` is a `LinkMessageChannel` object so
 you can call any functions of the protocol on it.
 
-To close a client, call `close` on the channel. To close a client
+To send some data:
+
+```clojure
+(send! client [1 345 "hello world"])
+```
+
+To close a client, call `close!` on the channel. To close a client
 factory, call `stop-clients` would work.
 
 
@@ -145,7 +159,7 @@ it accepts a ring function, so you can use any HTTP framework on link
 http server, without pain.
 
 ```clojure
-(use 'link.http)
+(require '[link.http :refer :all])
 
 (http-server 8080 ring-app-fn
              :executor ... ;; the thread pool to run ring functions on)
@@ -158,8 +172,8 @@ New in link 0.5. You can start a websocket server with link.
 Create a websocket handler:
 
 ```clojure
-(use 'link.websocket)
-(use 'link.tcp)
+(require '[link.websocket :refer :all])
+(require '[link.tcp :refer :all])
 
 (def ws-echo-handler
   (create-handler
@@ -179,6 +193,6 @@ Create a websocket handler:
 
 ## License
 
-Copyright (C) 2012-2015 Sun Ning <sunng@about.me>
+Copyright (C) 2012-2017 Ning Sun <sunng@about.me>
 
 Distributed under the Eclipse Public License, the same as Clojure.
