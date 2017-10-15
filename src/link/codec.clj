@@ -2,14 +2,16 @@
   (:refer-clojure :exclude [byte float double])
   (:require [link.util :as util])
   (:import [java.util List])
-  (:import [io.netty.buffer
-            ByteBuf])
+  (:import [io.netty.buffer ByteBuf Unpooled])
   (:import [io.netty.channel
             ChannelHandlerContext
             ChannelPromise])
   (:import [io.netty.handler.codec
             ByteToMessageDecoder
             MessageToByteEncoder]))
+
+(defn unpooled-buffer []
+  (Unpooled/buffer))
 
 (defmacro defcodec [sym encoder-fn decoder-fn]
   `(defn ~sym [& options#]
