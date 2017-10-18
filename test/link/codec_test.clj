@@ -56,3 +56,11 @@
           bytes (byte-array (.readableBytes decoded-buffer))]
       (.readBytes decoded-buffer bytes)
       (is (= "Hello World" (String. bytes "UTF-8"))))))
+
+(deftest test-invalid-string-codec
+  (try
+    (let [codec (string :encoding :ascii)]
+      (encode* codec "hello" (unpooled-buffer)))
+    (is false)
+    (catch Exception e
+      (is (instance? IllegalArgumentException e)))))

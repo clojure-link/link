@@ -61,43 +61,47 @@
                  encoding (name encoding)
                  bytes (.getBytes (or data "") encoding)]
              (cond
-              ;; length prefix string
-              (nil? delimiter)
-              (do
-                ((:encoder prefix) (alength bytes) buffer)
-                (.writeBytes buffer ^bytes bytes))
-              ;; delimiter based string
-              (nil? prefix)
-              (do
-                (.writeBytes buffer ^bytes bytes)
-                (.writeBytes buffer ^bytes
-                             (.getBytes ^String delimiter encoding)))))
+               (and (nil? delimiter) (nil? prefix))
+               (throw (IllegalArgumentException. "Neither :delimiter nor :prefix provided for string codec"))
+               ;; length prefix string
+               (nil? delimiter)
+               (do
+                 ((:encoder prefix) (alength bytes) buffer)
+                 (.writeBytes buffer ^bytes bytes))
+               ;; delimiter based string
+               (nil? prefix)
+               (do
+                 (.writeBytes buffer ^bytes bytes)
+                 (.writeBytes buffer ^bytes
+                              (.getBytes ^String delimiter encoding)))))
            buffer)
   (decoder [options ^ByteBuf buffer]
            (let [{:keys [prefix encoding delimiter]} options
                  encoding (name encoding)]
              (cond
-              ;; length prefix string
-              (nil? delimiter)
-              (do
-                (when-let [byte-length ((:decoder prefix) buffer)]
-                  (when-not (> byte-length (.readableBytes buffer))
-                    (let [bytes (byte-array byte-length)]
-                      (.readBytes buffer ^bytes bytes)
-                      (String. bytes encoding)))))
+               (and (nil? delimiter) (nil? prefix))
+               (throw (IllegalArgumentException. "Neither :delimiter nor :prefix provided for string codec"))
+               ;; length prefix string
+               (nil? delimiter)
+               (do
+                 (when-let [byte-length ((:decoder prefix) buffer)]
+                   (when-not (> byte-length (.readableBytes buffer))
+                     (let [bytes (byte-array byte-length)]
+                       (.readBytes buffer ^bytes bytes)
+                       (String. bytes encoding)))))
 
-              ;; delimiter based string
-              (nil? prefix)
-              (let [dbytes (.getBytes ^String delimiter encoding)
-                    dmlength (alength ^bytes dbytes)
-                    dlength (find-delimiter buffer dbytes)
-                    slength (- dlength dmlength)]
-                (when (> slength 0)
-                  (let [sbytes (byte-array slength)]
-                    (.readBytes buffer ^bytes sbytes)
-                    ;; move readerIndex
-                    (.readerIndex buffer (+ dmlength (.readerIndex buffer)))
-                    (String. sbytes encoding))))))))
+               ;; delimiter based string
+               (nil? prefix)
+               (let [dbytes (.getBytes ^String delimiter encoding)
+                     dmlength (alength ^bytes dbytes)
+                     dlength (find-delimiter buffer dbytes)
+                     slength (- dlength dmlength)]
+                 (when (> slength 0)
+                   (let [sbytes (byte-array slength)]
+                     (.readBytes buffer ^bytes sbytes)
+                     ;; move readerIndex
+                     (.readerIndex buffer (+ dmlength (.readerIndex buffer)))
+                     (String. sbytes encoding))))))))
 
 (defcodec byte-block
   (encoder [options ^ByteBuf data ^ByteBuf buffer]
@@ -149,7 +153,7 @@
            (let [[enumer children] options
                  head ((:decoder enumer) buffer)
                  body (and head ;; body is nil if head is nil
-                       ((:decoder (get children head)) buffer))]
+                           ((:decoder (get children head)) buffer))]
              (if-not (nil? body)
                [head body]))))
 
@@ -192,7 +196,7 @@
 
 (defn encode*
   ([codec data ^ByteBuf buffer]
-     ((:encoder codec) data buffer)))
+   ((:encoder codec) data buffer)))
 
 (defn decode* [codec ^ByteBuf buffer]
   ((:decoder codec) buffer))
