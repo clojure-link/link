@@ -96,7 +96,7 @@
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
          (if-let [handler# (:on-active handlers#)]
-           (when (false? )
+           (when (false? (handler# (.channel ctx#)))
              (.fireChannelActive ctx#))
            (.fireChannelActive ctx#)))
 
