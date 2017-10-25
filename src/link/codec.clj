@@ -7,6 +7,7 @@
             ChannelHandlerContext
             ChannelPromise])
   (:import [io.netty.handler.codec
+            ByteToMessageCodec
             ByteToMessageDecoder
             MessageToByteEncoder]))
 
@@ -202,7 +203,7 @@
   ((:decoder codec) buffer))
 
 (defn netty-encoder [codec]
-  (if codec
+  (when codec
     (fn [_]
       (proxy [MessageToByteEncoder] []
         (encode [^ChannelHandlerContext ctx
@@ -211,9 +212,24 @@
           (encode* codec msg buf))))))
 
 (defn netty-decoder [codec]
-  (if codec
+  (when codec
     (fn [_]
       (proxy [ByteToMessageDecoder]  []
+        (decode [ctx ^ByteBuf buf ^List out]
+          (.markReaderIndex buf)
+          (let [frame (decode* codec buf)]
+            (if frame
+              (.add out frame)
+              (.resetReaderIndex buf))))))))
+
+(defn netty-codec [codec]
+  (when codec
+    (fn [_]
+      (proxy [ByteToMessageCodec] []
+        (encode [^ChannelHandlerContext ctx
+                 msg
+                 ^ByteBuf buf]
+          (encode* codec msg buf))
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
           (let [frame (decode* codec buf)]
