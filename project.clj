@@ -1,4 +1,8 @@
-(def netty-version "4.1.14.Final")
+(def netty-version "4.1.16.Final")
+
+(def example-base-command
+  ["trampoline" "with-profile" "default,example" "run" "-m"])
+
 (defproject link "0.10.3-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
@@ -11,9 +15,11 @@
                  [io.netty/netty-common ~netty-version]
                  [io.netty/netty-handler ~netty-version]
                  [io.netty/netty-transport ~netty-version]
-                 [org.clojure/tools.logging "0.3.1"]]
-  :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}}
+                 [org.clojure/tools.logging "0.4.0"]]
+  :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}
+             :example {:source-paths ["examples"]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
-  :global-vars {*warn-on-reflection* true}
-  :deploy-repositories {"releases" :clojars})
+  :global-vars {*warn-on-reflection* false}
+  :deploy-repositories {"releases" :clojars}
+  :aliases {"run-echo-example" ~(conj example-base-command "link.examples.echo")})
