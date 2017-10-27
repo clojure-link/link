@@ -22,7 +22,7 @@
 
 (defn -main [& args]
   (let [port 8715]
-    (tcp/tcp-server 8715 [echo-codec echo-server-handler])
+    (tcp/tcp-server port [echo-codec echo-server-handler])
     (logging/infof "TCP Server started on port %s" port)
     (let [client-factory (tcp/tcp-client-factory [echo-codec echo-client-handler])
           client (tcp/tcp-client client-factory "127.0.0.1" port)]
