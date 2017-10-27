@@ -41,9 +41,9 @@
               (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
 
 (defn- start-tcp-server [host port handlers options]
-  (let [boss-group (NioEventLoopGroup.)
-        worker-group (NioEventLoopGroup.)
-        bootstrap (ServerBootstrap.)
+  (let [boss-group (or (:boss-group options) (NioEventLoopGroup.))
+        worker-group (or (:worker-group options) (NioEventLoopGroup.))
+        bootstrap (or (:bootstrap options) (ServerBootstrap.))
 
         channel-initializer (channel-init handlers)
 
