@@ -11,6 +11,7 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [io.netty/netty-buffer ~netty-version]
                  [io.netty/netty-codec-http ~netty-version]
+                 [io.netty/netty-codec-http2 ~netty-version]
                  [io.netty/netty-codec ~netty-version]
                  [io.netty/netty-common ~netty-version]
                  [io.netty/netty-handler ~netty-version]
