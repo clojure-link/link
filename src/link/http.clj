@@ -3,6 +3,8 @@
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
   (:require [link.threads :as threads]
+            [link.http.common :refer :all]
+            [link.http.http2 :as h2]
             [clojure.tools.logging :as logging])
   (:import [java.io File InputStream PrintStream])
   (:import [java.net InetSocketAddress])
@@ -26,20 +28,6 @@
   (:import [clojure.lang APersistentMap]))
 
 
-(defn- as-header-map [headers]
-  (apply hash-map
-         (flatten (map #(vector (lower-case (key %))
-                                (val %)) headers))))
-
-(defn- find-query-string [^String uri]
-  (if (< 0 (.indexOf uri "?"))
-    (subs uri (+ 1 (.indexOf uri "?")))))
-
-(defn- find-request-uri [^String uri]
-  (if (< 0 (.indexOf uri "?"))
-    (subs uri 0 (.indexOf uri "?"))
-    uri))
-
 (defn ring-request [ch req]
   (let [server-addr (channel-addr ch)
         uri (.getUri ^FullHttpRequest req)]
@@ -48,7 +36,7 @@
      :remote-addr (.getHostString ^InetSocketAddress (remote-addr ch))
      :uri (find-request-uri uri)
      :query-string (find-query-string uri)
-     :scheme :http
+     :scheme (.getScheme req)
      :request-method (keyword (lower-case
                                (.. ^FullHttpRequest req getMethod name)))
      :content-type (HttpHeaders/getHeader
@@ -59,7 +47,7 @@
      :headers (as-header-map (.headers ^FullHttpRequest req))
      :body (let [cbis (ByteBufInputStream.
                        (.content ^FullHttpRequest req))]
-             (if (> (.available ^ByteBufInputStream cbis) 0)
+             (when (> (.available ^ByteBufInputStream cbis) 0)
                cbis))}))
 
 (defn ring-response [resp]
