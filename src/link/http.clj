@@ -39,11 +39,6 @@
      :scheme (.getScheme req)
      :request-method (keyword (lower-case
                                (.. ^FullHttpRequest req getMethod name)))
-     :content-type (HttpHeaders/getHeader
-                    ^FullHttpRequest req HttpHeaders$Names/CONTENT_TYPE)
-     :content-length (HttpHeaders/getContentLength req)
-     :character-encoding (HttpHeaders/getHeader
-                          req HttpHeaders$Names/CONTENT_ENCODING)
      :headers (as-header-map (.headers ^FullHttpRequest req))
      :body (let [cbis (ByteBufInputStream.
                        (.content ^FullHttpRequest req))]
@@ -53,39 +48,12 @@
 (defn ring-response [resp]
   (let [{status :status headers :headers body :body} resp
         status (or status 200)
-        content (cond
-                 (nil? body) (Unpooled/buffer 0)
-
-                 (instance? String body)
-                 (let [buffer (Unpooled/buffer)
-                       bytes (.getBytes ^String body "UTF-8")]
-                   (.writeBytes ^ByteBuf buffer ^bytes bytes)
-                   buffer)
-
-                 (sequential? body)
-                 (let [buffer (Unpooled/buffer)
-                       line-bytes (map #(.getBytes ^String % "UTF-8") body)]
-                   (doseq [line line-bytes]
-                     (.writeBytes ^ByteBuf buffer ^bytes line))
-                   buffer)
-
-                 (instance? File body)
-                 (let [buffer (Unpooled/buffer)
-                       buffer-out (ByteBufOutputStream. buffer)
-                       file-in (input-stream body)]
-                   (copy file-in buffer-out)
-                   buffer)
-
-                 (instance? InputStream body)
-                 (let [buffer (Unpooled/buffer)
-                       buffer-out (ByteBufOutputStream. buffer)]
-                   (copy body buffer-out)
-                   buffer))
+        content (content-from-ring-body body)
 
         netty-response (DefaultFullHttpResponse.
                          HttpVersion/HTTP_1_1
                          (HttpResponseStatus/valueOf status)
-                         content)
+                         (or content (Unpooled/buffer 0)))
 
         netty-headers (.headers netty-response)]
 
