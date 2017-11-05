@@ -3,7 +3,7 @@
 (def example-base-command
   ["trampoline" "with-profile" "default,example" "run" "-m"])
 
-(defproject link "0.10.3"
+(defproject link "0.10.4-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
