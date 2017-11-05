@@ -8,10 +8,11 @@
             ApplicationProtocolNames]
            [io.netty.buffer ByteBufInputStream]
            [io.netty.handler.codec.http HttpServerCodec HttpObjectAggregator
-            HttpResponseStatus]
+            HttpResponseStatus HttpServerUpgradeHandler$UpgradeCodecFactory]
            [io.netty.handler.codec.http2 Http2MultiplexCodecBuilder
             Http2HeadersFrame Http2DataFrame Http2Headers Http2Headers$PseudoHeaderName
-            DefaultHttp2Headers DefaultHttp2HeadersFrame DefaultHttp2DataFrame]))
+            DefaultHttp2Headers DefaultHttp2HeadersFrame DefaultHttp2DataFrame
+            Http2CodecUtil Http2ServerUpgradeCodec]))
 
 (defn from-header-iterator
   "extract ring headers from http2headers"
@@ -47,7 +48,7 @@
        (DefaultHttp2DataFrame. content true)]
       [(DefaultHttp2HeadersFrame. http2headers)])))
 
-(defn http2-stream-handler [handler]
+(defn http2-stream-handler [ring-fn]
   (let [request (atom {})]
     (create-handler
      (on-message [ch msg]
@@ -61,7 +62,7 @@
                      (when (> (.available ^ByteBufInputStream body-in) 0)
                        (swap! request assoc :body body-in))))
                  (when (.isEndStream msg)
-                   (let [ring-resp (handler @request)
+                   (let [ring-resp (ring-fn @request)
                          resp-frames (ring-response-to-http2 ring-resp)]
                      (doseq [f resp-frames]
                        (send! ch f))))))))
@@ -79,3 +80,11 @@
          handler]
 
         :else (IllegalStateException. "Unsupported ALPN Protocol")))))
+
+;; for h2c
+(defn http2-upgrade-handler [ring-fn]
+  (reify HttpServerUpgradeHandler$UpgradeCodecFactory
+    (newUpgradeCodec [this protocol]
+      (when (= protocol Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME)
+        (Http2ServerUpgradeCodec. (Http2MultiplexCodecBuilder/forServer
+                                   (http2-stream-handler ring-fn)))))))

@@ -12,14 +12,17 @@
             ByteBuf
             Unpooled
             ByteBufInputStream
-            ByteBufOutputStream])
-  (:import [io.netty.handler.codec.http
+            ByteBufOutputStream]
+           [io.netty.channel SimpleChannelInboundHandler]
+           [io.netty.handler.codec.http
             HttpVersion
             FullHttpRequest
             FullHttpResponse
             HttpHeaders
             HttpHeaders$Names
             HttpHeaders$Values
+            HttpServerCodec
+            HttpServerUpgradeHandler
             HttpRequestDecoder
             HttpObjectAggregator
             HttpResponseEncoder
@@ -148,3 +151,33 @@
   Header
   {:get-header #(.get %1 ^String %2)
    :set-header #(.set %1 ^String %2 %3)})
+
+;; h2c handlers, fallback to http 1.1 if no upgrade
+;; TODO: async ring handler
+;; TODO: debug mode
+(defn h2c-handlers [ring-fn max-length]
+  (let [http-server-codec (HttpServerCodec.)
+        upgrade-handler (HttpServerUpgradeHandler. http-server-codec
+                                                   (h2/http2-upgrade-handler ring-fn))]
+    [http-server-codec
+     upgrade-handler
+     (proxy [SimpleChannelInboundHandler] []
+       (channelRead0 [ctx msg]
+         (let [ppl (.pipeline ctx)
+               this-ctx (.context ppl this)]
+           (.addAfter ppl (.name this-ctx) nil (create-http-handler-from-ring ring-fn false))
+           (.replace ppl this nil (HttpObjectAggregator. max-length)))))]))
+
+;; TODO: executor
+(defn h2c-server [port ring-fn
+                   & {:keys [threads executor debug host
+                             max-request-body async?
+                             options]
+                      :or {threads nil
+                           executor nil
+                           debug false
+                           host "0.0.0.0"
+                           max-request-body 1048576}}]
+  (let [executor (if threads (threads/new-executor threads) executor)
+        handlers (h2c-handlers ring-fn max-request-body)]
+    (tcp-server port handlers :host host :options options)))
