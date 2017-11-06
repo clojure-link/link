@@ -39,7 +39,7 @@
      :remote-addr (.getHostString ^InetSocketAddress (remote-addr ch))
      :uri (find-request-uri uri)
      :query-string (find-query-string uri)
-     :scheme (.getScheme req)
+     :scheme :http
      :request-method (keyword (lower-case
                                (.. ^FullHttpRequest req getMethod name)))
      :headers (as-header-map (.headers ^FullHttpRequest req))
@@ -49,7 +49,8 @@
                cbis))}))
 
 (defn ring-response [resp]
-  (let [{status :status headers :headers body :body} resp
+  (let [resp (if (map? resp) resp {:body resp :headers {"Content-Type" "text/html"}})
+        {status :status headers :headers body :body} resp
         status (or status 200)
         content (content-from-ring-body body)
 
@@ -87,21 +88,13 @@
     (send! ch resp)
     (close! ch)))
 
-(defprotocol ResponseHandle
-  (http-handle [resp ch req]))
-
-(extend-protocol ResponseHandle
-  APersistentMap
-  (http-handle [resp ch _]
-    (send! ch (ring-response resp))))
-
 (defn create-http-handler-from-ring [ring-fn debug?]
   (create-handler
    (on-message [ch msg]
                (when (valid? ch)
                  (let [req  (ring-request ch msg)
                        resp (or (ring-fn req) {})]
-                   (http-handle resp ch req))))
+                   (send! ch (ring-response resp)))))
 
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
@@ -112,7 +105,7 @@
    (on-message [ch msg]
                (let [req (ring-request ch msg)
                      resp-fn (fn [resp]
-                               (http-handle resp ch req))
+                               (send! ch (ring-response resp)))
                      raise-fn (fn [error]
                                 (http-on-error ch error debug?))]
                  (ring-fn req resp-fn raise-fn)))
@@ -170,14 +163,14 @@
 
 ;; TODO: executor
 (defn h2c-server [port ring-fn
-                   & {:keys [threads executor debug host
-                             max-request-body async?
-                             options]
-                      :or {threads nil
-                           executor nil
-                           debug false
-                           host "0.0.0.0"
-                           max-request-body 1048576}}]
+                  & {:keys [threads executor debug host
+                            max-request-body async?
+                            options]
+                     :or {threads nil
+                          executor nil
+                          debug false
+                          host "0.0.0.0"
+                          max-request-body 1048576}}]
   (let [executor (if threads (threads/new-executor threads) executor)
-        handlers (h2c-handlers ring-fn max-request-body)]
-    (tcp-server port handlers :host host :options options)))
+        handler-spec (fn [_] (h2c-handlers ring-fn max-request-body))]
+    (tcp-server port handler-spec :host host :options options)))

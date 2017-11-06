@@ -23,4 +23,7 @@
         :url "http://github.com/sunng87/link"}
   :global-vars {*warn-on-reflection* false}
   :deploy-repositories {"releases" :clojars}
-  :aliases {"run-echo-example" ~(conj example-base-command "link.examples.echo")})
+  :aliases {"run-echo-example" ~(conj example-base-command "link.examples.echo")
+            "run-http-simple-example" ~(conj example-base-command "link.examples.http.simple")
+            "run-http-async-example"  ~(conj example-base-command "link.examples.http.async")
+            "run-http-h2c-example" ~(conj example-base-command "link.examples.http.h2c")})
