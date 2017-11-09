@@ -1,4 +1,4 @@
-(def netty-version "4.1.16.Final")
+(def netty-version "4.1.17.Final")
 
 (def example-base-command
   ["trampoline" "with-profile" "default,example" "run" "-m"])
