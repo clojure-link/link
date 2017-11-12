@@ -27,7 +27,7 @@
         http2headers (.headers frame)
         uri (str (.path http2headers))
         header-map (from-header-iterator (.iterator http2headers))]
-    {:scheme (.scheme http2headers)
+    {:scheme (keyword (str (.scheme http2headers)))
      :request-method (-> (.method http2headers) (string/lower-case) (keyword))
      :uri (find-request-uri uri)
      :query-string (find-request-uri uri)
