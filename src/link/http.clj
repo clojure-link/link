@@ -147,8 +147,7 @@
 
 ;; h2c handlers, fallback to http 1.1 if no upgrade
 ;; TODO: async ring handler
-;; TODO: debug mode
-(defn h2c-handlers [ring-fn max-length]
+(defn h2c-handlers [ring-fn max-length executor debug?]
   (let [http-server-codec (HttpServerCodec.)
         upgrade-handler (HttpServerUpgradeHandler. http-server-codec
                                                    (h2/http2-upgrade-handler ring-fn))]
@@ -158,10 +157,9 @@
        (channelRead0 [ctx msg]
          (let [ppl (.pipeline ctx)
                this-ctx (.context ppl this)]
-           (.addAfter ppl (.name this-ctx) nil (create-http-handler-from-ring ring-fn false))
+           (.addAfter ppl executor (.name this-ctx) nil (create-http-handler-from-ring ring-fn debug?))
            (.replace ppl this nil (HttpObjectAggregator. max-length)))))]))
 
-;; TODO: executor
 (defn h2c-server [port ring-fn
                   & {:keys [threads executor debug host
                             max-request-body async?
@@ -172,5 +170,5 @@
                           host "0.0.0.0"
                           max-request-body 1048576}}]
   (let [executor (if threads (threads/new-executor threads) executor)
-        handler-spec (fn [_] (h2c-handlers ring-fn max-request-body))]
+        handler-spec (fn [_] (h2c-handlers ring-fn max-request-body executor debug))]
     (tcp-server port handler-spec :host host :options options)))

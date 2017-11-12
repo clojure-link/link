@@ -7,7 +7,7 @@
             ApplicationProtocolNegotiationHandler
             ApplicationProtocolNames]
            [io.netty.buffer ByteBufInputStream]
-           [io.netty.channel ChannelFuture]
+           [io.netty.channel ChannelFuture SimpleChannelInboundHandler]
            [io.netty.handler.codec.http HttpServerCodec HttpObjectAggregator
             HttpResponseStatus HttpServerUpgradeHandler$UpgradeCodecFactory]
            [io.netty.handler.codec.http2 Http2MultiplexCodecBuilder
