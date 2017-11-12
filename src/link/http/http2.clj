@@ -73,24 +73,28 @@
   (valid? [this]
     (.isActive this)))
 
-(defn http2-stream-handler [ring-fn]
-  (let [request (atom {})]
-    (create-handler
-     (on-message [ch msg]
-                 (cond
-                   (instance? Http2HeadersFrame msg)
-                   (let [ring-data (ring-data-from-header ch msg)]
-                     (swap! request merge ring-data))
+(def ^:const http2-data-key "HTTP_DATA")
 
-                   (instance? Http2DataFrame msg)
-                   (let [body-in (ByteBufInputStream. (.content ^Http2DataFrame msg))]
-                     (when (> (.available ^ByteBufInputStream body-in) 0)
-                       (swap! request assoc :body body-in))))
-                 (when (.isEndStream msg)
-                   (let [ring-resp (ring-fn @request)
-                         resp-frames (ring-response-to-http2 ring-resp)]
-                     (doseq [f resp-frames]
-                       (send! ch f))))))))
+(defn http2-stream-handler [ring-fn]
+  (create-handler
+   (on-message [ch msg]
+               (cond
+                 (instance? Http2HeadersFrame msg)
+                 (let [ring-data (ring-data-from-header ch msg)]
+                   (channel-attr-set! ch http2-data-key ring-data))
+
+                 (instance? Http2DataFrame msg)
+                 (let [body-in (ByteBufInputStream. (.content ^Http2DataFrame msg))
+                       ring-data (channel-attr-get http2-data-key)]
+                   (when (> (.available ^ByteBufInputStream body-in) 0)
+                     (channel-attr-set! ch http2-data-key
+                                        (assoc ring-data :body body-in)))))
+               (when (.isEndStream msg)
+                 (let [ring-req (channel-attr-get ch http2-data-key)
+                       ring-resp (ring-fn ring-req)
+                       resp-frames (ring-response-to-http2 ring-resp)]
+                   (doseq [f resp-frames]
+                     (send! ch f)))))))
 
 (defn http2-alpn-handler [handler max-request-body]
   (proxy [ApplicationProtocolNegotiationHandler] [ApplicationProtocolNames/HTTP_1_1]
