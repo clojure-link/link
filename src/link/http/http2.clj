@@ -28,11 +28,12 @@
         uri (str (.path http2headers))
         header-map (from-header-iterator (.iterator http2headers))]
     {:scheme (keyword (str (.scheme http2headers)))
+     :protocol "h2c"
      :request-method (-> (.method http2headers) (string/lower-case) (keyword))
      :uri (find-request-uri uri)
      :query-string (find-request-uri uri)
      :headers header-map
-     :server-addr (.getHostString ^InetSocketAddress server-addr)
+     :server-name (.getHostString ^InetSocketAddress server-addr)
      :server-port (.getPort ^InetSocketAddress server-addr)
      :remote-addr (.getHostString ^InetSocketAddress (remote-addr ch))}))
 
@@ -73,9 +74,12 @@
   (valid? [this]
     (.isActive this)))
 
+(defn http2-on-error [ch exc debug]
+  )
+
 (def ^:const http2-data-key "HTTP_DATA")
 
-(defn http2-stream-handler [ring-fn]
+(defn http2-stream-handler [ring-fn async?]
   (create-handler
    (on-message [ch msg]
                (cond
@@ -90,11 +94,20 @@
                      (channel-attr-set! ch http2-data-key
                                         (assoc ring-data :body body-in)))))
                (when (.isEndStream msg)
-                 (let [ring-req (channel-attr-get ch http2-data-key)
-                       ring-resp (ring-fn ring-req)
-                       resp-frames (ring-response-to-http2 ring-resp)]
-                   (doseq [f resp-frames]
-                     (send! ch f)))))))
+                 (let [ring-req (channel-attr-get ch http2-data-key)]
+                   (if-not async?
+                     ;; sync
+                     (let [ring-resp (ring-fn ring-req)
+                           resp-frames (ring-response-to-http2 ring-resp)]
+                       (doseq [f resp-frames]
+                         (send! ch f)))
+                     ;; async
+                     (let [send-fn (fn [resp]
+                                       (doseq [f (ring-response-to-http2 resp)]
+                                         (send! ch f)))
+                           raise-fn (fn [error]
+                                      )]
+                       (ring-fn ring-req send-fn raise-fn))))))))
 
 (defn http2-alpn-handler [handler max-request-body]
   (proxy [ApplicationProtocolNegotiationHandler] [ApplicationProtocolNames/HTTP_1_1]
