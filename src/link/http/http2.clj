@@ -1,7 +1,8 @@
 (ns link.http.http2
   (:require [link.core :refer :all]
             [link.http.common :refer :all]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [clojure.tools.logging :as logging])
   (:import [java.net InetSocketAddress]
            [io.netty.handler.ssl
             ApplicationProtocolNegotiationHandler
@@ -31,17 +32,17 @@
      :protocol "h2c"
      :request-method (-> (.method http2headers) (string/lower-case) (keyword))
      :uri (find-request-uri uri)
-     :query-string (find-request-uri uri)
+     :query-string (find-query-string uri)
      :headers header-map
      :server-name (.getHostString ^InetSocketAddress server-addr)
      :server-port (.getPort ^InetSocketAddress server-addr)
      :remote-addr (.getHostString ^InetSocketAddress (remote-addr ch))}))
 
-(defn ring-response-to-http2 [resp]
+(defn ring-response-to-http2 [resp alloc]
   (let [resp (if (map? resp) resp {:body resp})
         {status :status headers :headers body :body} resp
         status (or status 200)
-        content (content-from-ring-body body)
+        content (content-from-ring-body body alloc)
 
         http2headers (doto (DefaultHttp2Headers.)
                        (.status (.codeAsText (HttpResponseStatus/valueOf status))))]
@@ -75,11 +76,17 @@
     (.isActive this)))
 
 (defn http2-on-error [ch exc debug]
-  )
+  (let [resp-frames (ring-response-to-http2 {:status 500
+                                             :body (if debug
+                                                     (str (.getStackTrace exc))
+                                                     "Internal Error")}
+                                            (.alloc ch))]
+    (doseq [f resp-frames]
+      (send! ch f))))
 
 (def ^:const http2-data-key "HTTP_DATA")
 
-(defn http2-stream-handler [ring-fn async?]
+(defn http2-stream-handler [ring-fn async? debug?]
   (create-handler
    (on-message [ch msg]
                (cond
@@ -103,17 +110,21 @@
                          (send! ch f)))
                      ;; async
                      (let [send-fn (fn [resp]
-                                       (doseq [f (ring-response-to-http2 resp)]
+                                       (doseq [f (ring-response-to-http2 resp (.alloc ch))]
                                          (send! ch f)))
                            raise-fn (fn [error]
-                                      )]
-                       (ring-fn ring-req send-fn raise-fn))))))))
+                                      (http2-on-error ch error debug?))]
+                       (ring-fn ring-req send-fn raise-fn))))))
+   (on-error [ch exc]
+             (logging/warn exc "Uncaught exception")
+             (http2-on-error ch exc debug?))))
 
 (defn http2-alpn-handler [handler max-request-body]
   (proxy [ApplicationProtocolNegotiationHandler] [ApplicationProtocolNames/HTTP_1_1]
     (configurePipeline [ctx protocol]
       (cond
         (= protocol ApplicationProtocolNames/HTTP_2)
+        ;; FIXME: handler
         [(.build (Http2MultiplexCodecBuilder/forServer (http2-stream-handler handler)))]
 
         (= protocol ApplicationProtocolNames/HTTP_1_1)
@@ -124,10 +135,10 @@
         :else (IllegalStateException. "Unsupported ALPN Protocol")))))
 
 ;; for h2c
-(defn http2-upgrade-handler [ring-fn]
+(defn http2-upgrade-handler [ring-fn async? debug?]
   (reify HttpServerUpgradeHandler$UpgradeCodecFactory
     (newUpgradeCodec [this protocol]
       (when (= protocol Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME)
         (Http2ServerUpgradeCodec.
          (.build (Http2MultiplexCodecBuilder/forServer
-                  (http2-stream-handler ring-fn))))))))
+                  (http2-stream-handler ring-fn async? debug?))))))))

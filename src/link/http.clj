@@ -27,7 +27,8 @@
             HttpObjectAggregator
             HttpResponseEncoder
             HttpResponseStatus
-            DefaultFullHttpResponse])
+            DefaultFullHttpResponse]
+           [io.netty.util ReferenceCountUtil])
   (:import [clojure.lang APersistentMap]))
 
 
@@ -49,11 +50,11 @@
              (when (> (.available ^ByteBufInputStream cbis) 0)
                cbis))}))
 
-(defn ring-response [resp]
+(defn ring-response [resp alloc]
   (let [resp (if (map? resp) resp {:body resp :headers {"Content-Type" "text/html"}})
         {status :status headers :headers body :body} resp
         status (or status 200)
-        content (content-from-ring-body body)
+        content (content-from-ring-body body alloc)
 
         netty-response (DefaultFullHttpResponse.
                          HttpVersion/HTTP_1_1
@@ -95,7 +96,7 @@
                (when (valid? ch)
                  (let [req  (ring-request ch msg)
                        resp (or (ring-fn req) {})]
-                   (send! ch (ring-response resp)))))
+                   (send! ch (ring-response resp (.alloc ch))))))
 
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
@@ -106,7 +107,7 @@
    (on-message [ch msg]
                (let [req (ring-request ch msg)
                      resp-fn (fn [resp]
-                               (send! ch (ring-response resp)))
+                               (send! ch (ring-response resp (.alloc ch))))
                      raise-fn (fn [error]
                                 (http-on-error ch error debug?))]
                  (ring-fn req resp-fn raise-fn)))
@@ -147,11 +148,10 @@
    :set-header #(.set %1 ^String %2 %3)})
 
 ;; h2c handlers, fallback to http 1.1 if no upgrade
-;; TODO: async ring handler
-(defn h2c-handlers [ring-fn max-length executor debug?]
+(defn h2c-handlers [ring-fn max-length executor debug? async?]
   (let [http-server-codec (HttpServerCodec.)
         upgrade-handler (HttpServerUpgradeHandler. http-server-codec
-                                                   (h2/http2-upgrade-handler ring-fn))]
+                                                   (h2/http2-upgrade-handler ring-fn async? debug?))]
     [http-server-codec
      upgrade-handler
      (proxy [SimpleChannelInboundHandler] []
@@ -159,7 +159,8 @@
          (let [ppl (.pipeline ctx)
                this-ctx (.context ppl this)]
            (.addAfter ppl executor (.name this-ctx) nil (create-http-handler-from-ring ring-fn debug?))
-           (.replace ppl this nil (HttpObjectAggregator. max-length)))))]))
+           (.replace ppl this nil (HttpObjectAggregator. max-length)))
+         (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))]))
 
 (defn h2c-server [port ring-fn
                   & {:keys [threads executor debug host
@@ -171,5 +172,5 @@
                           host "0.0.0.0"
                           max-request-body 1048576}}]
   (let [executor (if threads (threads/new-executor threads) executor)
-        handler-spec (fn [_] (h2c-handlers ring-fn max-request-body executor debug))]
+        handler-spec (fn [_] (h2c-handlers ring-fn max-request-body executor debug async?))]
     (tcp-server port handler-spec :host host :options options)))
