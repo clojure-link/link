@@ -13,7 +13,7 @@
             Unpooled
             ByteBufInputStream
             ByteBufOutputStream]
-           [io.netty.channel SimpleChannelInboundHandler]
+           [io.netty.channel ChannelHandler SimpleChannelInboundHandler]
            [io.netty.handler.codec.http
             HttpVersion
             FullHttpRequest
@@ -28,6 +28,9 @@
             HttpResponseEncoder
             HttpResponseStatus
             DefaultFullHttpResponse]
+           [io.netty.handler.ssl
+            ApplicationProtocolNegotiationHandler
+            ApplicationProtocolNames]
            [io.netty.util ReferenceCountUtil])
   (:import [clojure.lang APersistentMap]))
 
@@ -158,7 +161,10 @@
        (channelRead0 [ctx msg]
          (let [ppl (.pipeline ctx)
                this-ctx (.context ppl this)]
-           (.addAfter ppl executor (.name this-ctx) nil (create-http-handler-from-ring ring-fn debug?))
+           (.addAfter ppl executor (.name this-ctx) nil
+                      (if async?
+                        (create-http-handler-from-async-ring ring-fn debug?)
+                        (create-http-handler-from-ring ring-fn debug?)))
            (.replace ppl this nil (HttpObjectAggregator. max-length)))
          (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))]))
 
@@ -174,3 +180,29 @@
   (let [executor (if threads (threads/new-executor threads) executor)
         handler-spec (fn [_] (h2c-handlers ring-fn max-request-body executor debug async?))]
     (tcp-server port handler-spec :host host :options options)))
+
+(defn http2-alpn-handler [ring-fn executor max-request-body async? debug?]
+  (proxy [ApplicationProtocolNegotiationHandler] [ApplicationProtocolNames/HTTP_1_1]
+    (configurePipeline [ctx protocol]
+      (cond
+        (= protocol ApplicationProtocolNames/HTTP_2)
+        (.addLast (.pipeline ctx)
+                  executor
+                  (into-array ^ChannelHandler
+                              [(h2/http2-multiplex-handler
+                                (h2/http2-stream-handler ring-fn async? debug?))]))
+
+        (= protocol ApplicationProtocolNames/HTTP_1_1)
+        (do
+          (.addLast (.pipeline ctx)
+                    executor
+                    (into-array ^ChannelHandler
+                                [(if async?
+                                   (create-http-handler-from-async-ring ring-fn debug?)
+                                   (create-http-handler-from-ring ring-fn debug?))]))
+          (.addLast (.pipeline ctx)
+                    (into-array ^ChannelHandler
+                                [(HttpServerCodec.)
+                                 (HttpObjectAggregator. max-request-body)])))
+
+        :else (throw (IllegalStateException. "Unsupported ALPN Protocol"))))))

@@ -4,13 +4,10 @@
             [clojure.string :as string]
             [clojure.tools.logging :as logging])
   (:import [java.net InetSocketAddress]
-           [io.netty.handler.ssl
-            ApplicationProtocolNegotiationHandler
-            ApplicationProtocolNames]
            [io.netty.buffer ByteBufInputStream]
            [io.netty.channel ChannelFuture SimpleChannelInboundHandler]
-           [io.netty.handler.codec.http HttpServerCodec HttpObjectAggregator
-            HttpResponseStatus HttpServerUpgradeHandler$UpgradeCodecFactory]
+           [io.netty.handler.codec.http HttpResponseStatus
+            HttpServerUpgradeHandler$UpgradeCodecFactory]
            [io.netty.handler.codec.http2 Http2MultiplexCodecBuilder
             Http2HeadersFrame Http2DataFrame Http2Headers Http2Headers$PseudoHeaderName
             DefaultHttp2Headers DefaultHttp2HeadersFrame DefaultHttp2DataFrame
@@ -119,20 +116,8 @@
              (logging/warn exc "Uncaught exception")
              (http2-on-error ch exc debug?))))
 
-(defn http2-alpn-handler [handler max-request-body]
-  (proxy [ApplicationProtocolNegotiationHandler] [ApplicationProtocolNames/HTTP_1_1]
-    (configurePipeline [ctx protocol]
-      (cond
-        (= protocol ApplicationProtocolNames/HTTP_2)
-        ;; FIXME: handler
-        [(.build (Http2MultiplexCodecBuilder/forServer (http2-stream-handler handler)))]
-
-        (= protocol ApplicationProtocolNames/HTTP_1_1)
-        [(HttpServerCodec.)
-         (HttpObjectAggregator. max-request-body)
-         handler]
-
-        :else (IllegalStateException. "Unsupported ALPN Protocol")))))
+(defn http2-multiplex-handler [handler]
+  (.build (Http2MultiplexCodecBuilder/forServer handler)))
 
 ;; for h2c
 (defn http2-upgrade-handler [ring-fn async? debug?]
@@ -140,5 +125,5 @@
     (newUpgradeCodec [this protocol]
       (when (= protocol Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME)
         (Http2ServerUpgradeCodec.
-         (.build (Http2MultiplexCodecBuilder/forServer
-                  (http2-stream-handler ring-fn async? debug?))))))))
+         (http2-multiplex-handler
+          (http2-stream-handler ring-fn async? debug?)))))))
