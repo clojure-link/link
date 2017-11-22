@@ -5,6 +5,7 @@
   (:require [link.threads :as threads]
             [link.http.common :refer :all]
             [link.http.http2 :as h2]
+            [link.ssl :as ssl]
             [clojure.tools.logging :as logging])
   (:import [java.io File InputStream PrintStream])
   (:import [java.net InetSocketAddress])
@@ -29,6 +30,7 @@
             HttpResponseStatus
             DefaultFullHttpResponse]
            [io.netty.handler.ssl
+            SslContext
             ApplicationProtocolNegotiationHandler
             ApplicationProtocolNames]
            [io.netty.util ReferenceCountUtil])
@@ -187,7 +189,7 @@
       (cond
         (= protocol ApplicationProtocolNames/HTTP_2)
         (.addLast (.pipeline ctx)
-                  executor
+                  #_executor
                   (into-array ^ChannelHandler
                               [(h2/http2-multiplex-handler
                                 (h2/http2-stream-handler ring-fn async? debug?))]))
@@ -195,14 +197,30 @@
         (= protocol ApplicationProtocolNames/HTTP_1_1)
         (do
           (.addLast (.pipeline ctx)
+                    (into-array ChannelHandler
+                                [(HttpServerCodec.)
+                                 (HttpObjectAggregator. max-request-body)]))
+          (.addLast (.pipeline ctx)
                     executor
-                    (into-array ^ChannelHandler
+                    (into-array ChannelHandler
                                 [(if async?
                                    (create-http-handler-from-async-ring ring-fn debug?)
-                                   (create-http-handler-from-ring ring-fn debug?))]))
-          (.addLast (.pipeline ctx)
-                    (into-array ^ChannelHandler
-                                [(HttpServerCodec.)
-                                 (HttpObjectAggregator. max-request-body)])))
+                                   (create-http-handler-from-ring ring-fn debug?))])))
 
         :else (throw (IllegalStateException. "Unsupported ALPN Protocol"))))))
+
+(defn h2-server
+  "start http2 server"
+  [port ring-fn ^SslContext ssl-context
+   & {:keys [threads executor debug host
+             max-request-body async? options]
+      :or {threads nil
+           executor nil
+           debug false
+           host "0.0.0.0"
+           max-request-body 1048576}}]
+  (let [executor (if threads (threads/new-executor threads) executor)
+        handler-spec [(ssl/ssl-handler ssl-context)
+                      (fn [_] (http2-alpn-handler ring-fn executor max-request-body
+                                                async? debug))]]
+    (tcp-server port handler-spec :host host :options options)))

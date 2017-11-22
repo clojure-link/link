@@ -102,7 +102,7 @@
                    (if-not async?
                      ;; sync
                      (let [ring-resp (ring-fn ring-req)
-                           resp-frames (ring-response-to-http2 ring-resp)]
+                           resp-frames (ring-response-to-http2 ring-resp (.alloc ch))]
                        (doseq [f resp-frames]
                          (send! ch f)))
                      ;; async
