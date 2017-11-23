@@ -8,11 +8,10 @@
            [io.netty.channel ChannelFuture SimpleChannelInboundHandler]
            [io.netty.handler.codec.http HttpResponseStatus
             HttpServerUpgradeHandler$UpgradeCodecFactory]
-           [io.netty.handler.codec.http2 Http2MultiplexCodecBuilder
+           [io.netty.handler.codec.http2 Http2FrameCodecBuilder
             Http2HeadersFrame Http2DataFrame Http2Headers Http2Headers$PseudoHeaderName
             DefaultHttp2Headers DefaultHttp2HeadersFrame DefaultHttp2DataFrame
-            Http2CodecUtil Http2ServerUpgradeCodec
-            Http2MultiplexCodec$DefaultHttp2StreamChannel]
+            Http2CodecUtil Http2ServerUpgradeCodec]
            [io.netty.util.concurrent GenericFutureListener]))
 
 (defn from-header-iterator
@@ -52,72 +51,60 @@
        (DefaultHttp2DataFrame. content true)]
       [(DefaultHttp2HeadersFrame. http2headers true)])))
 
-(extend-protocol LinkMessageChannel
-  Http2MultiplexCodec$DefaultHttp2StreamChannel
-  (id [this]
-    (channel-id this))
-  (send! [this msg]
-    (send!* this msg nil))
-  (send!* [this msg cb]
-    (let [cf (.writeAndFlush this msg)]
-      (when cb
-        (.addListener ^ChannelFuture cf (reify GenericFutureListener
-                                          (operationComplete [this f] (cb f)))))))
-  (channel-addr [this]
-    (.localAddress this))
-  (remote-addr [this]
-    (.remoteAddress this))
-  (close! [this]
-    (.close this))
-  (valid? [this]
-    (.isActive this)))
-
 (defn http2-on-error [ch exc debug]
   (let [resp-frames (ring-response-to-http2 {:status 500
                                              :body (if debug
                                                      (str (.getStackTrace exc))
                                                      "Internal Error")}
                                             (.alloc ch))]
+    ;; TODO: which stream?
     (doseq [f resp-frames]
       (send! ch f))))
 
 (def ^:const http2-data-key "HTTP_DATA")
 
+(defn- handle-full-request [ch msg ring-fn async? debug?]
+  (when (.isEndStream msg)
+    (let [ring-req (channel-attr-get ch http2-data-key)
+          stream (.stream msg)]
+      (if-not async?
+        ;; sync
+        (let [ring-resp (ring-fn ring-req)
+              resp-frames (ring-response-to-http2 ring-resp (.alloc ch))]
+          (doseq [f resp-frames]
+            (send! ch (.stream f stream))))
+        ;; async
+        (let [send-fn (fn [resp]
+                        (doseq [f (ring-response-to-http2 resp (.alloc ch))]
+                          (send! ch (.stream f stream))))
+              raise-fn (fn [error]
+                         (http2-on-error ch error debug?))]
+          (ring-fn ring-req send-fn raise-fn))))))
+
 (defn http2-stream-handler [ring-fn async? debug?]
   (create-handler
    (on-message [ch msg]
+               (println msg)
                (cond
                  (instance? Http2HeadersFrame msg)
                  (let [ring-data (ring-data-from-header ch msg)]
-                   (channel-attr-set! ch http2-data-key ring-data))
+                   (channel-attr-set! ch http2-data-key ring-data)
+                   (handle-full-request ch msg ring-fn async? debug?))
 
                  (instance? Http2DataFrame msg)
                  (let [body-in (ByteBufInputStream. (.content ^Http2DataFrame msg))
                        ring-data (channel-attr-get http2-data-key)]
                    (when (> (.available ^ByteBufInputStream body-in) 0)
                      (channel-attr-set! ch http2-data-key
-                                        (assoc ring-data :body body-in)))))
-               (when (.isEndStream msg)
-                 (let [ring-req (channel-attr-get ch http2-data-key)]
-                   (if-not async?
-                     ;; sync
-                     (let [ring-resp (ring-fn ring-req)
-                           resp-frames (ring-response-to-http2 ring-resp (.alloc ch))]
-                       (doseq [f resp-frames]
-                         (send! ch f)))
-                     ;; async
-                     (let [send-fn (fn [resp]
-                                       (doseq [f (ring-response-to-http2 resp (.alloc ch))]
-                                         (send! ch f)))
-                           raise-fn (fn [error]
-                                      (http2-on-error ch error debug?))]
-                       (ring-fn ring-req send-fn raise-fn))))))
+                                        (assoc ring-data :body body-in)))
+                   (handle-full-request ch msg ring-fn async? debug?)))
+               )
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
              (http2-on-error ch exc debug?))))
 
-(defn http2-multiplex-handler [handler]
-  (.build (Http2MultiplexCodecBuilder/forServer handler)))
+(defn http2-frame-handler []
+  (.build (Http2FrameCodecBuilder/forServer)))
 
 ;; for h2c
 (defn http2-upgrade-handler [ring-fn async? debug?]
@@ -125,5 +112,5 @@
     (newUpgradeCodec [this protocol]
       (when (= protocol Http2CodecUtil/HTTP_UPGRADE_PROTOCOL_NAME)
         (Http2ServerUpgradeCodec.
-         (http2-multiplex-handler
-          (http2-stream-handler ring-fn async? debug?)))))))
+         (http2-frame-handler)
+         (http2-stream-handler ring-fn async? debug?))))))

@@ -189,10 +189,10 @@
       (cond
         (= protocol ApplicationProtocolNames/HTTP_2)
         (.addLast (.pipeline ctx)
-                  #_executor
-                  (into-array ^ChannelHandler
-                              [(h2/http2-multiplex-handler
-                                (h2/http2-stream-handler ring-fn async? debug?))]))
+                  executor
+                  (into-array ChannelHandler
+                              [(h2/http2-frame-handler)
+                               (h2/http2-stream-handler ring-fn async? debug?)]))
 
         (= protocol ApplicationProtocolNames/HTTP_1_1)
         (do
