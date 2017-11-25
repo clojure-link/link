@@ -88,6 +88,14 @@
   (doseq [^EventLoopGroup elg event-loop-groups]
     (.sync (.shutdownGracefully elg))))
 
+(defn server-bootstrap
+  "Allow multiple server instance share the same eventloop:
+  Just use the result of this function as option in `tcp-server`"
+  []
+  {:boss-group (NioEventLoopGroup.)
+   :worker-group (NioEventLoopGroup.)
+   :boostrap (ServerBootstrap.)})
+
 (defn tcp-client-factory [handlers
                           & {:keys [options]
                              :or {options {}}}]
