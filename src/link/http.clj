@@ -3,6 +3,9 @@
   (:use [clojure.string :only [lower-case]])
   (:use [clojure.java.io :only [input-stream copy]])
   (:require [link.threads :as threads]
+            [link.http.common :refer :all]
+            [link.http.http2 :as h2]
+            [link.ssl :as ssl]
             [clojure.tools.logging :as logging])
   (:import [java.io File InputStream PrintStream])
   (:import [java.net InetSocketAddress])
@@ -10,94 +13,58 @@
             ByteBuf
             Unpooled
             ByteBufInputStream
-            ByteBufOutputStream])
-  (:import [io.netty.handler.codec.http
+            ByteBufOutputStream]
+           [io.netty.channel ChannelHandler SimpleChannelInboundHandler]
+           [io.netty.handler.codec.http
             HttpVersion
             FullHttpRequest
             FullHttpResponse
             HttpHeaders
             HttpHeaders$Names
             HttpHeaders$Values
+            HttpServerCodec
+            HttpServerUpgradeHandler
             HttpRequestDecoder
             HttpObjectAggregator
             HttpResponseEncoder
             HttpResponseStatus
-            DefaultFullHttpResponse])
+            DefaultFullHttpResponse]
+           [io.netty.handler.ssl
+            SslContext
+            ApplicationProtocolNegotiationHandler
+            ApplicationProtocolNames]
+           [io.netty.util ReferenceCountUtil])
   (:import [clojure.lang APersistentMap]))
 
-
-(defn- as-header-map [headers]
-  (apply hash-map
-         (flatten (map #(vector (lower-case (key %))
-                                (val %)) headers))))
-
-(defn- find-query-string [^String uri]
-  (if (< 0 (.indexOf uri "?"))
-    (subs uri (+ 1 (.indexOf uri "?")))))
-
-(defn- find-request-uri [^String uri]
-  (if (< 0 (.indexOf uri "?"))
-    (subs uri 0 (.indexOf uri "?"))
-    uri))
 
 (defn ring-request [ch req]
   (let [server-addr (channel-addr ch)
         uri (.getUri ^FullHttpRequest req)]
-    {:server-addr (.getHostString ^InetSocketAddress server-addr)
+    {:server-name (.getHostString ^InetSocketAddress server-addr)
      :server-port (.getPort ^InetSocketAddress server-addr)
      :remote-addr (.getHostString ^InetSocketAddress (remote-addr ch))
      :uri (find-request-uri uri)
      :query-string (find-query-string uri)
      :scheme :http
+     :protocol "HTTP/1.1"
      :request-method (keyword (lower-case
                                (.. ^FullHttpRequest req getMethod name)))
-     :content-type (HttpHeaders/getHeader
-                    ^FullHttpRequest req HttpHeaders$Names/CONTENT_TYPE)
-     :content-length (HttpHeaders/getContentLength req)
-     :character-encoding (HttpHeaders/getHeader
-                          req HttpHeaders$Names/CONTENT_ENCODING)
      :headers (as-header-map (.headers ^FullHttpRequest req))
      :body (let [cbis (ByteBufInputStream.
                        (.content ^FullHttpRequest req))]
-             (if (> (.available ^ByteBufInputStream cbis) 0)
+             (when (> (.available ^ByteBufInputStream cbis) 0)
                cbis))}))
 
-(defn ring-response [resp]
-  (let [{status :status headers :headers body :body} resp
+(defn ring-response [resp alloc]
+  (let [resp (if (map? resp) resp {:body resp :headers {"Content-Type" "text/html"}})
+        {status :status headers :headers body :body} resp
         status (or status 200)
-        content (cond
-                 (nil? body) (Unpooled/buffer 0)
-
-                 (instance? String body)
-                 (let [buffer (Unpooled/buffer)
-                       bytes (.getBytes ^String body "UTF-8")]
-                   (.writeBytes ^ByteBuf buffer ^bytes bytes)
-                   buffer)
-
-                 (sequential? body)
-                 (let [buffer (Unpooled/buffer)
-                       line-bytes (map #(.getBytes ^String % "UTF-8") body)]
-                   (doseq [line line-bytes]
-                     (.writeBytes ^ByteBuf buffer ^bytes line))
-                   buffer)
-
-                 (instance? File body)
-                 (let [buffer (Unpooled/buffer)
-                       buffer-out (ByteBufOutputStream. buffer)
-                       file-in (input-stream body)]
-                   (copy file-in buffer-out)
-                   buffer)
-
-                 (instance? InputStream body)
-                 (let [buffer (Unpooled/buffer)
-                       buffer-out (ByteBufOutputStream. buffer)]
-                   (copy body buffer-out)
-                   buffer))
+        content (content-from-ring-body body alloc)
 
         netty-response (DefaultFullHttpResponse.
                          HttpVersion/HTTP_1_1
                          (HttpResponseStatus/valueOf status)
-                         content)
+                         (or content (Unpooled/buffer 0)))
 
         netty-headers (.headers netty-response)]
 
@@ -128,21 +95,13 @@
     (send! ch resp)
     (close! ch)))
 
-(defprotocol ResponseHandle
-  (http-handle [resp ch req]))
-
-(extend-protocol ResponseHandle
-  APersistentMap
-  (http-handle [resp ch _]
-    (send! ch (ring-response resp))))
-
 (defn create-http-handler-from-ring [ring-fn debug?]
   (create-handler
    (on-message [ch msg]
                (when (valid? ch)
                  (let [req  (ring-request ch msg)
                        resp (or (ring-fn req) {})]
-                   (http-handle resp ch req))))
+                   (send! ch (ring-response resp (.alloc ch))))))
 
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
@@ -153,7 +112,7 @@
    (on-message [ch msg]
                (let [req (ring-request ch msg)
                      resp-fn (fn [resp]
-                               (http-handle resp ch req))
+                               (send! ch (ring-response resp (.alloc ch))))
                      raise-fn (fn [error]
                                 (http-on-error ch error debug?))]
                  (ring-fn req resp-fn raise-fn)))
@@ -192,3 +151,76 @@
   Header
   {:get-header #(.get %1 ^String %2)
    :set-header #(.set %1 ^String %2 %3)})
+
+;; h2c handlers, fallback to http 1.1 if no upgrade
+(defn h2c-handlers [ring-fn max-length executor debug? async?]
+  (let [http-server-codec (HttpServerCodec.)
+        upgrade-handler (HttpServerUpgradeHandler. http-server-codec
+                                                   (h2/http2-upgrade-handler ring-fn async? debug?))]
+    [http-server-codec
+     upgrade-handler
+     (proxy [SimpleChannelInboundHandler] []
+       (channelRead0 [ctx msg]
+         (let [ppl (.pipeline ctx)
+               this-ctx (.context ppl this)]
+           (.addAfter ppl executor (.name this-ctx) nil
+                      (if async?
+                        (create-http-handler-from-async-ring ring-fn debug?)
+                        (create-http-handler-from-ring ring-fn debug?)))
+           (.replace ppl this nil (HttpObjectAggregator. max-length)))
+         (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))]))
+
+(defn h2c-server [port ring-fn
+                  & {:keys [threads executor debug host
+                            max-request-body async?
+                            options]
+                     :or {threads nil
+                          executor nil
+                          debug false
+                          host "0.0.0.0"
+                          max-request-body 1048576}}]
+  (let [executor (if threads (threads/new-executor threads) executor)
+        handler-spec (fn [_] (h2c-handlers ring-fn max-request-body executor debug async?))]
+    (tcp-server port handler-spec :host host :options options)))
+
+(defn http2-alpn-handler [ring-fn executor max-request-body async? debug?]
+  (proxy [ApplicationProtocolNegotiationHandler] [ApplicationProtocolNames/HTTP_1_1]
+    (configurePipeline [ctx protocol]
+      (cond
+        (= protocol ApplicationProtocolNames/HTTP_2)
+        (.addLast (.pipeline ctx)
+                  executor
+                  (into-array ChannelHandler
+                              [(h2/http2-frame-handler)
+                               (h2/http2-stream-handler ring-fn async? debug?)]))
+
+        (= protocol ApplicationProtocolNames/HTTP_1_1)
+        (do
+          (.addLast (.pipeline ctx)
+                    (into-array ChannelHandler
+                                [(HttpServerCodec.)
+                                 (HttpObjectAggregator. max-request-body)]))
+          (.addLast (.pipeline ctx)
+                    executor
+                    (into-array ChannelHandler
+                                [(if async?
+                                   (create-http-handler-from-async-ring ring-fn debug?)
+                                   (create-http-handler-from-ring ring-fn debug?))])))
+
+        :else (throw (IllegalStateException. "Unsupported ALPN Protocol"))))))
+
+(defn h2-server
+  "start http2 server"
+  [port ring-fn ^SslContext ssl-context
+   & {:keys [threads executor debug host
+             max-request-body async? options]
+      :or {threads nil
+           executor nil
+           debug false
+           host "0.0.0.0"
+           max-request-body 1048576}}]
+  (let [executor (if threads (threads/new-executor threads) executor)
+        handler-spec [(ssl/ssl-handler ssl-context)
+                      (fn [_] (http2-alpn-handler ring-fn executor max-request-body
+                                                async? debug))]]
+    (tcp-server port handler-spec :host host :options options)))

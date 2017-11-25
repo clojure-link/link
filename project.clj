@@ -1,4 +1,4 @@
-(def netty-version "4.1.16.Final")
+(def netty-version "4.1.17.Final")
 
 (def example-base-command
   ["trampoline" "with-profile" "default,example" "run" "-m"])
@@ -11,15 +11,22 @@
   :dependencies [[org.clojure/clojure "1.8.0"]
                  [io.netty/netty-buffer ~netty-version]
                  [io.netty/netty-codec-http ~netty-version]
+                 [io.netty/netty-codec-http2 ~netty-version]
                  [io.netty/netty-codec ~netty-version]
                  [io.netty/netty-common ~netty-version]
                  [io.netty/netty-handler ~netty-version]
                  [io.netty/netty-transport ~netty-version]
                  [org.clojure/tools.logging "0.4.0"]]
   :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}
-             :example {:source-paths ["examples"]}}
+             :example {:source-paths ["examples"]
+                       :plugins [[info.sunng/lein-bootclasspath-deps "0.3.0"]]
+                       :boot-dependencies [[org.mortbay.jetty.alpn/alpn-boot "8.1.11.v20170118" :prepend true]]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
   :global-vars {*warn-on-reflection* false}
   :deploy-repositories {"releases" :clojars}
-  :aliases {"run-echo-example" ~(conj example-base-command "link.examples.echo")})
+  :aliases {"run-echo-example" ~(conj example-base-command "link.examples.echo")
+            "run-http-simple-example" ~(conj example-base-command "link.examples.http.simple")
+            "run-http-async-example"  ~(conj example-base-command "link.examples.http.async")
+            "run-http-h2c-example" ~(conj example-base-command "link.examples.http.h2c")
+            "run-http-h2-example" ~(conj example-base-command "link.examples.http.h2")})

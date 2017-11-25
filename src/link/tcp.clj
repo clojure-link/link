@@ -28,17 +28,25 @@
 (defn channel-init [handler-specs]
   (proxy [ChannelInitializer] []
     (initChannel [^Channel ch]
-      (let [pipeline ^ChannelPipeline (.pipeline ch)]
+      (let [pipeline ^ChannelPipeline (.pipeline ch)
+            ;; the handler-spec itself can be a factory function that
+            ;; returns handler-specs
+            handler-specs (if (fn? handler-specs)
+                            (handler-specs ch)
+                            handler-specs)]
         (doseq [hs handler-specs]
           (if (map? hs)
             (let [h (if (fn? (:handler hs)) ((:handler hs) ch) (:handler hs))]
               (if-not (:executor hs)
-                (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))
+                (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;"
+                          (into-array ChannelHandler [h]))
                 (.addLast pipeline
                           ^EventExecutorGroup (:executor hs)
-                          ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h]))))
+                          ^"[Lio.netty.channel.ChannelHandler;"
+                          (into-array ChannelHandler [h]))))
             (let [h (if (fn? hs) (hs ch) hs)]
-              (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler [h])))))))))
+              (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;"
+                        (into-array ChannelHandler [h])))))))))
 
 (defn- start-tcp-server [host port handlers options]
   (let [boss-group (or (:boss-group options) (NioEventLoopGroup.))
@@ -67,7 +75,10 @@
                   & {:keys [options host]
                      :or {options {}
                           host "0.0.0.0"}}]
-  (let [handlers (if (sequential? handlers) handlers [handlers])]
+  (let [handlers (cond
+                   (fn? handlers) handlers
+                   (sequential? handlers) handlers
+                   :else [handlers])]
     (start-tcp-server host
                       port
                       handlers
@@ -82,7 +93,10 @@
                              :or {options {}}}]
   (let [worker-group (NioEventLoopGroup.)
         bootstrap (Bootstrap.)
-        handlers (if (sequential? handlers) handlers [handlers])
+        handlers (cond
+                   (fn? handlers) handlers
+                   (sequential? handlers) handlers
+                   :else [handlers])
 
         channel-initializer (channel-init handlers)
         options (into [] options)]
