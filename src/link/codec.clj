@@ -32,7 +32,7 @@
               (. buffer# ~writer-fn data#)
               buffer#)
      (decoder [_# ^ByteBuf buffer#]
-              (if (>= (.readableBytes buffer#) ~size)
+              (when (>= (.readableBytes buffer#) ~size)
                 (. buffer# ~reader-fn)))))
 
 (primitive-codec byte 1 writeByte readByte)
@@ -168,7 +168,7 @@
              (loop [c codecs r []]
                (if (empty? c)
                  r
-                 (if-let [r0 ((:decoder (first c)) buffer)]
+                 (when-let [r0 ((:decoder (first c)) buffer)]
                    (recur (rest c) (conj r r0))))))))
 
 (defcodec counted
@@ -217,10 +217,9 @@
       (proxy [ByteToMessageDecoder]  []
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
-          (let [frame (decode* codec buf)]
-            (if frame
-              (.add out frame)
-              (.resetReaderIndex buf))))))))
+          (if-let [frame (decode* codec buf)]
+            (.add out frame)
+            (.resetReaderIndex buf)))))))
 
 (defn netty-codec [codec]
   (when codec
@@ -232,7 +231,6 @@
           (encode* codec msg buf))
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
-          (let [frame (decode* codec buf)]
-            (if frame
-              (.add out frame)
-              (.resetReaderIndex buf))))))))
+          (if-let [frame (decode* codec buf)]
+            (.add out frame)
+            (.resetReaderIndex buf)))))))

@@ -1,14 +1,14 @@
-(def netty-version "4.1.17.Final")
+(def netty-version "4.1.18.Final")
 
 (def example-base-command
   ["trampoline" "with-profile" "default,example" "run" "-m"])
 
-(defproject link "0.10.4-SNAPSHOT"
+(defproject link "0.11.0-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.8.0"]
+  :dependencies [[org.clojure/clojure "1.9.0"]
                  [io.netty/netty-buffer ~netty-version]
                  [io.netty/netty-codec-http ~netty-version]
                  [io.netty/netty-codec-http2 ~netty-version]
