@@ -1,6 +1,7 @@
 (ns link.codec
   (:refer-clojure :exclude [byte float double])
-  (:require [link.util :as util])
+  (:require [link.util :as util]
+            [clojure.walk :refer [postwalk]])
   (:import [java.util List])
   (:import [io.netty.buffer ByteBuf Unpooled])
   (:import [io.netty.channel
@@ -9,7 +10,8 @@
   (:import [io.netty.handler.codec
             ByteToMessageCodec
             ByteToMessageDecoder
-            MessageToByteEncoder]))
+            MessageToByteEncoder]
+           [io.netty.util ReferenceCountUtil]))
 
 (defn unpooled-buffer []
   (Unpooled/buffer))
@@ -121,7 +123,7 @@
                  byte-length (decode-length-fn ((:decoder prefix) buffer))]
              (when-not (or (nil? byte-length)
                            (> byte-length (.readableBytes buffer)))
-               (.readRetainedSlice buffer byte-length)))))
+               (.readSlice buffer byte-length)))))
 
 (def ^{:private true} reversed-map
   (memoize
@@ -202,6 +204,9 @@
 (defn decode* [codec ^ByteBuf buffer]
   ((:decoder codec) buffer))
 
+(defn try-retain [frame]
+  (postwalk #(ReferenceCountUtil/retain %) frame))
+
 (defn netty-encoder [codec]
   (when codec
     (fn [_]
@@ -218,7 +223,7 @@
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
           (if-let [frame (decode* codec buf)]
-            (.add out frame)
+            (.add out (try-retain frame))
             (.resetReaderIndex buf)))))))
 
 (defn netty-codec [codec]
@@ -232,5 +237,5 @@
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
           (if-let [frame (decode* codec buf)]
-            (.add out frame)
+            (.add out (try-retain frame))
             (.resetReaderIndex buf)))))))
