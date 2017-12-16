@@ -16,6 +16,12 @@
 (defn unpooled-buffer []
   (Unpooled/buffer))
 
+(defn try-retain [frame]
+  (postwalk #(ReferenceCountUtil/retain %) frame))
+
+(defn try-release [frame]
+  (postwalk #(ReferenceCountUtil/release %) frame))
+
 (defmacro defcodec [sym encoder-fn decoder-fn]
   `(defn ~sym [& options#]
      {:encoder (partial ~encoder-fn options#)
@@ -123,7 +129,7 @@
                  byte-length (decode-length-fn ((:decoder prefix) buffer))]
              (when-not (or (nil? byte-length)
                            (> byte-length (.readableBytes buffer)))
-               (.readSlice buffer byte-length)))))
+               (.readRetainedSlice buffer byte-length)))))
 
 (def ^{:private true} reversed-map
   (memoize
@@ -158,7 +164,10 @@
                  body (and head ;; body is nil if head is nil
                            ((:decoder (get children head)) buffer))]
              (if-not (nil? body)
-               [head body]))))
+               [head body]
+               (do
+                 (try-release body)
+                 nil)))))
 
 (defcodec frame
   (encoder [options data ^ByteBuf buffer]
@@ -170,8 +179,11 @@
              (loop [c codecs r []]
                (if (empty? c)
                  r
-                 (when-let [r0 ((:decoder (first c)) buffer)]
-                   (recur (rest c) (conj r r0))))))))
+                 (if-let [r0 ((:decoder (first c)) buffer)]
+                   (recur (rest c) (conj r r0))
+                   (do
+                     (try-release r)
+                     nil)))))))
 
 (defcodec counted
   (encoder [options data ^ByteBuf buffer]
@@ -188,8 +200,11 @@
                (loop [idx 0 results []]
                  (if (== idx length)
                    results
-                   (when-let [data ((:decoder body-codec) buffer)]
-                     (recur (inc idx) (conj results data)))))))))
+                   (if-let [data ((:decoder body-codec) buffer)]
+                     (recur (inc idx) (conj results data))
+                     (do
+                       (try-release results)
+                       nil))))))))
 
 (defcodec const
   (encoder [options data ^ByteBuf buffer]
@@ -203,9 +218,6 @@
 
 (defn decode* [codec ^ByteBuf buffer]
   ((:decoder codec) buffer))
-
-(defn try-retain [frame]
-  (postwalk #(ReferenceCountUtil/retain %) frame))
 
 (defn netty-encoder [codec]
   (when codec
@@ -223,7 +235,7 @@
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
           (if-let [frame (decode* codec buf)]
-            (.add out (try-retain frame))
+            (.add out frame)
             (.resetReaderIndex buf)))))))
 
 (defn netty-codec [codec]
@@ -237,5 +249,5 @@
         (decode [ctx ^ByteBuf buf ^List out]
           (.markReaderIndex buf)
           (if-let [frame (decode* codec buf)]
-            (.add out (try-retain frame))
+            (.add out frame)
             (.resetReaderIndex buf)))))))
