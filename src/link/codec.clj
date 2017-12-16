@@ -1,6 +1,7 @@
 (ns link.codec
   (:refer-clojure :exclude [byte float double])
-  (:require [link.util :as util])
+  (:require [link.util :as util]
+            [clojure.walk :refer [postwalk]])
   (:import [java.util List])
   (:import [io.netty.buffer ByteBuf Unpooled])
   (:import [io.netty.channel
@@ -9,10 +10,17 @@
   (:import [io.netty.handler.codec
             ByteToMessageCodec
             ByteToMessageDecoder
-            MessageToByteEncoder]))
+            MessageToByteEncoder]
+           [io.netty.util ReferenceCountUtil]))
 
 (defn unpooled-buffer []
   (Unpooled/buffer))
+
+(defn try-retain [frame]
+  (postwalk #(ReferenceCountUtil/retain %) frame))
+
+(defn try-release [frame]
+  (postwalk #(ReferenceCountUtil/release %) frame))
 
 (defmacro defcodec [sym encoder-fn decoder-fn]
   `(defn ~sym [& options#]
@@ -156,7 +164,10 @@
                  body (and head ;; body is nil if head is nil
                            ((:decoder (get children head)) buffer))]
              (if-not (nil? body)
-               [head body]))))
+               [head body]
+               (do
+                 (try-release body)
+                 nil)))))
 
 (defcodec frame
   (encoder [options data ^ByteBuf buffer]
@@ -168,8 +179,11 @@
              (loop [c codecs r []]
                (if (empty? c)
                  r
-                 (when-let [r0 ((:decoder (first c)) buffer)]
-                   (recur (rest c) (conj r r0))))))))
+                 (if-let [r0 ((:decoder (first c)) buffer)]
+                   (recur (rest c) (conj r r0))
+                   (do
+                     (try-release r)
+                     nil)))))))
 
 (defcodec counted
   (encoder [options data ^ByteBuf buffer]
@@ -186,8 +200,11 @@
                (loop [idx 0 results []]
                  (if (== idx length)
                    results
-                   (when-let [data ((:decoder body-codec) buffer)]
-                     (recur (inc idx) (conj results data)))))))))
+                   (if-let [data ((:decoder body-codec) buffer)]
+                     (recur (inc idx) (conj results data))
+                     (do
+                       (try-release results)
+                       nil))))))))
 
 (defcodec const
   (encoder [options data ^ByteBuf buffer]
