@@ -131,9 +131,9 @@
   `(fn [_] (create-handler0 false ~@body)))
 
 (defn channel-attr-set! [ch key value]
-  (let [a (attr ch (AttributeKey/valueOf (str key)))]
+  (let [a (.attr ch (AttributeKey/valueOf (str key)))]
     (.set a value)))
 
 (defn channel-attr-get [ch key]
-  (when-let [a (attr ch (AttributeKey/valueOf (str key)))]
+  (when-let [a (.attr ch (AttributeKey/valueOf (str key)))]
     (.get a)))
