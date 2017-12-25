@@ -142,5 +142,5 @@
         addr (InetSocketAddress. ^String host ^Integer port)
         stopped (atom false)]
     (let [connect-fn (fn [] (connect bootstrap addr stopped))
-          chref (agent (if-not lazy-connect (connect-fn)))]
+          chref (agent (when-not lazy-connect (connect-fn)))]
       (ClientSocketChannel. chref connect-fn stopped))))
