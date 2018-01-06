@@ -74,7 +74,7 @@
 
     (.set ^HttpHeaders netty-headers
           ^String HttpHeaders$Names/CONTENT_LENGTH
-          ^Object (.readableBytes content))
+          ^Object (if content (.readableBytes content) 0))
 
     (.set ^HttpHeaders netty-headers
           ^String HttpHeaders$Names/CONNECTION
