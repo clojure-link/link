@@ -36,14 +36,14 @@
       buffer)
 
     (instance? File body)
-    (let [buffer (.buffer alloc (alength bytes))
+    (let [buffer (.buffer alloc)
           buffer-out (ByteBufOutputStream. buffer)
           file-in (input-stream body)]
       (copy file-in buffer-out)
       buffer)
 
     (instance? InputStream body)
-    (let [buffer (.buffer alloc (alength bytes))
+    (let [buffer (.buffer alloc (.available ^InputStream body))
           buffer-out (ByteBufOutputStream. buffer)]
       (copy body buffer-out)
       buffer)))
