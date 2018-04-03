@@ -1,14 +1,7 @@
 (ns link.examples.http.h2
   (:require [link.http :as h]
             [link.ssl :as ssl])
-  (:import [io.netty.handler.ssl SslContextBuilder SslProvider]
-           [io.netty.handler.ssl.util SelfSignedCertificate]))
-
-(def ssl-context
-  (let [ssc (SelfSignedCertificate.)]
-    (.. (SslContextBuilder/forServer (.certificate ssc) (.privateKey ssc))
-      (sslProvider SslProvider/JDK)
-      (build))))
+  (:import [io.netty.handler.ssl.util SelfSignedCertificate]))
 
 (defn ring-app [req]
   {:status 200

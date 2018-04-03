@@ -165,6 +165,19 @@ http server, without pain.
              :executor ... ;; the thread pool to run ring functions on)
 ```
 
+#### HTTP/2 Server
+
+```clojure
+(require '[link.http :as h])
+(require '[link.ssl :as ssl])
+(import '[io.netty.handler.ssl.util SelfSignedCertificate])
+
+(let [ssc (SelfSignedCertificate.)
+      ssl-context (ssl/ssl-context-for-http2 (.certificate ssc) (.privateKey ssc)
+                                             :jdk)]
+  (h/h2-server 8443 ring-app ssl-context :threads 8))
+```
+
 #### Websocket
 
 New in link 0.5. You can start a websocket server with link.
