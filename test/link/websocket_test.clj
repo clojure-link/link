@@ -21,3 +21,7 @@
                       (on-binary [ch bytes]))]
     (.channelRead0 test-handler ch-handle-ctx (text UnpooledByteBufAllocator/DEFAULT echo-msg))
     (is @mark)))
+
+(deftest test-text-frame
+  (let [frame (text "helloworld")]
+    (is (= "helloworld" (.text frame)))))
