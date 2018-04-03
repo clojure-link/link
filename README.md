@@ -176,7 +176,7 @@ Create a websocket handler:
 (require '[link.tcp :refer :all])
 
 (def ws-echo-handler
-  (create-handler
+  (create-ws-handler
     (on-open [ch])
     (on-close [ch])
     (on-text [ch string]
