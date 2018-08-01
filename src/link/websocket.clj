@@ -60,8 +60,7 @@
              ^WebSocketFrame frame
              ^List out]
       (if (instance? CloseWebSocketFrame frame)
-        (let [handshaker (let [^ChannelHandlerContext ctx ctx]
-                           (proxy-super getHandshaker ctx))]
+        (let [handshaker (proxy-super getHandshaker ctx)]
           (.retain frame)
           (.close ^WebSocketServerHandshaker handshaker
                   (.channel ctx) frame))
