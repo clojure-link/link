@@ -48,7 +48,7 @@
           (handshake-info (.channel ^ChannelHandlerContext ctx) {:uri uri
                                           :headers headers}))
         ;; FIXME: use pipeline.remove(ctx) which is faster
-        (.remove (.pipeline ctx) this))
+        (.remove ^ChannelPipeline (.pipeline ^ChannelHandlerContext ctx) ^ChannelInboundHandlerAdapter this))
       (proxy-super channelRead ctx req))))
 
 (defn server-protocol-handler
@@ -60,7 +60,8 @@
              ^WebSocketFrame frame
              ^List out]
       (if (instance? CloseWebSocketFrame frame)
-        (let [handshaker (proxy-super getHandshaker ctx)]
+        (let [handshaker (let [^ChannelHandlerContext ctx ctx]
+                           (proxy-super getHandshaker ctx))]
           (.retain frame)
           (.close ^WebSocketServerHandshaker handshaker
                   (.channel ctx) frame))
@@ -81,7 +82,7 @@
                                    allow-extensions max-frame-size))])
 
 (defn text
-  ([data] (TextWebSocketFrame. data))
+  ([data] (TextWebSocketFrame. ^String data))
   ([^ByteBufAllocator alloc ^String s]
    (let [bytes (.getBytes s "UTF-8")
          buf (.buffer alloc (alength bytes))]
@@ -175,7 +176,7 @@
             ((:on-message handlers#) ch# msg#)
 
             :else
-            (.fireChannelRead ctx# (.retain msg#))))))))
+            (.fireChannelRead ctx# (.retain ^WebSocketFrame msg#))))))))
 
 (defmacro create-websocket-handler [& body]
   `(create-handler1 true ~@body))
