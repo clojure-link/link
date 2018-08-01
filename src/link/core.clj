@@ -9,7 +9,7 @@
             ChannelHandlerContext
             SimpleChannelInboundHandler])
   (:import [io.netty.channel.socket.nio NioSocketChannel])
-  (:import [io.netty.util AttributeKey]
+  (:import [io.netty.util AttributeKey Attribute]
            [io.netty.util.concurrent GenericFutureListener]))
 
 (defprotocol LinkMessageChannel
@@ -131,9 +131,9 @@
   `(fn [_] (create-handler0 false ~@body)))
 
 (defn channel-attr-set! [ch key value]
-  (let [a (.attr ch (AttributeKey/valueOf (str key)))]
-    (.set a value)))
+  (let [a (.attr ^Channel ch (AttributeKey/valueOf (str key)))]
+    (.set ^Attribute a value)))
 
 (defn channel-attr-get [ch key]
-  (when-let [a (.attr ch (AttributeKey/valueOf (str key)))]
-    (.get a)))
+  (when-let [a (.attr ^Channel ch (AttributeKey/valueOf (str key)))]
+    (.get ^Attribute a)))

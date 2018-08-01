@@ -14,7 +14,7 @@
             Unpooled
             ByteBufInputStream
             ByteBufOutputStream]
-           [io.netty.channel ChannelHandler SimpleChannelInboundHandler]
+           [io.netty.channel ChannelHandler SimpleChannelInboundHandler ChannelHandlerContext Channel ChannelPipeline]
            [io.netty.handler.codec.http
             HttpVersion
             FullHttpRequest
@@ -59,7 +59,7 @@
   (let [resp (if (map? resp) resp {:body resp :headers {"Content-Type" "text/html"}})
         {status :status headers :headers body :body} resp
         status (or status 200)
-        content (content-from-ring-body body alloc)
+        ^ByteBuf content (content-from-ring-body body alloc)
 
         netty-response (DefaultFullHttpResponse.
                          HttpVersion/HTTP_1_1
@@ -101,7 +101,7 @@
                (when (valid? ch)
                  (let [req  (ring-request ch msg)
                        resp (or (ring-fn req) {})]
-                   (send! ch (ring-response resp (.alloc ch))))))
+                   (send! ch (ring-response resp (.alloc ^Channel ch))))))
 
    (on-error [ch exc]
              (logging/warn exc "Uncaught exception")
@@ -112,7 +112,7 @@
    (on-message [ch msg]
                (let [req (ring-request ch msg)
                      resp-fn (fn [resp]
-                               (send! ch (ring-response resp (.alloc ch))))
+                               (send! ch (ring-response resp (.alloc ^Channel ch))))
                      raise-fn (fn [error]
                                 (http-on-error ch error debug?))]
                  (ring-fn req resp-fn raise-fn)))
@@ -149,8 +149,8 @@
 
 (extend HttpHeaders
   Header
-  {:get-header #(.get %1 ^String %2)
-   :set-header #(.set %1 ^String %2 %3)})
+  {:get-header #(.get ^HttpHeaders %1 ^String %2)
+   :set-header #(.set ^HttpHeaders %1 ^String %2 %3)})
 
 ;; h2c handlers, fallback to http 1.1 if no upgrade
 (defn h2c-handlers [ring-fn max-length executor debug? async?]
@@ -161,14 +161,14 @@
      upgrade-handler
      (proxy [SimpleChannelInboundHandler] []
        (channelRead0 [ctx msg]
-         (let [ppl (.pipeline ctx)
+         (let [^ChannelPipeline ppl (.pipeline ctx)
                this-ctx (.context ppl this)]
            (.addAfter ppl executor (.name this-ctx) nil
                       (if async?
                         (create-http-handler-from-async-ring ring-fn debug?)
                         (create-http-handler-from-ring ring-fn debug?)))
            (.replace ppl this nil (HttpObjectAggregator. max-length)))
-         (.fireChannelRead ctx (ReferenceCountUtil/retain msg))))]))
+         (.fireChannelRead ^ChannelHandlerContext ctx (ReferenceCountUtil/retain msg))))]))
 
 (defn h2c-server [port ring-fn
                   & {:keys [threads executor debug host
