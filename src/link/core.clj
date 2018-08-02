@@ -46,8 +46,10 @@
                                            (when ch
                                              (.close ^Channel ch))
                                            (factory-fn)))
-                                   cf (if (client-channel-valid? ch-)
-                                        (.writeAndFlush ^Channel ch- msg))]
+                                   cf (when (client-channel-valid? ch-)
+                                        (if cb
+                                          (.writeAndFlush ^Channel ch- msg)
+                                          (.writeAndFlush ^Channel ch- msg (.voidPromise ^Channel ch-))))]
                                (when (and cf cb)
                                  (.addListener ^ChannelFuture cf
                                                (reify GenericFutureListener
@@ -70,7 +72,7 @@
   (id [this]
     (channel-id this))
   (send! [this msg]
-    (send!* this msg nil))
+    (.writeAndFlush this msg (.voidPromise this)))
   (send!* [this msg cb]
     (let [cf (.writeAndFlush this msg)]
       (when cb
