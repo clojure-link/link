@@ -49,7 +49,7 @@
                                    cf (when (client-channel-valid? ch-)
                                         (if cb
                                           (.writeAndFlush ^Channel ch- msg)
-                                          (.writeAndFlush ^Channel ch- msg (.voidPromise this))))]
+                                          (.writeAndFlush ^Channel ch- msg (.voidPromise ^Channel ch-))))]
                                (when (and cf cb)
                                  (.addListener ^ChannelFuture cf
                                                (reify GenericFutureListener
