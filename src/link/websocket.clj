@@ -1,7 +1,7 @@
 (ns link.websocket
   (:use [link tcp util])
   (:import [java.util List])
-  (:import [io.netty.buffer ByteBuf Unpooled ByteBufAllocator])
+  (:import [io.netty.buffer ByteBuf Unpooled ByteBufAllocator ByteBufHolder])
   (:import [io.netty.handler.codec.http
             HttpResponseEncoder
             HttpRequestDecoder
@@ -121,22 +121,23 @@
 (make-handler-macro close)
 (make-handler-macro handshake-complete)
 (make-handler-macro event)
+(make-handler-macro channel-writability-changed)
 
 (defmacro create-handler1 [sharable & body]
   `(let [handlers# (merge ~@body)]
      (proxy [SimpleChannelInboundHandler] []
        (isSharable [] ~sharable)
        (channelActive [^ChannelHandlerContext ctx#]
-         (when-let [handler# (:on-open handlers#)]
+         (if-let [handler# (:on-open handlers#)]
            (when (false? (handler# (.channel ctx#)))
-             (.fireChannelActive ctx#)))
-         (.fireChannelActive ctx#))
+             (.fireChannelActive ctx#))
+           (.fireChannelActive ctx#)))
 
        (channelInactive [^ChannelHandlerContext ctx#]
-         (when-let [handler# (:on-close handlers#)]
+         (if-let [handler# (:on-close handlers#)]
            (when (false? (handler# (.channel ctx#)))
-             (.fireChannelInactive ctx#)))
-         (.fireChannelInactive ctx#))
+             (.fireChannelInactive ctx#))
+           (.fireChannelInactive ctx#)))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
@@ -144,6 +145,12 @@
            (when (false? (handler# (.channel ctx#) e#))
              (.fireExceptionCaught  ctx# e#))
            (.fireExceptionCaught  ctx# e#)))
+
+       (channelWritabilityChanged [^ChannelHandlerContext ctx#]
+         (if-let [handler# (:on-channel-writability-changed handlers#)]
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelWritabilityChanged ctx#))
+           (.fireChannelWritabilityChanged ctx#)))
 
        (userEventTriggered [^ChannelHandlerContext ctx# evt#]
          (if (and (= evt# WebSocketServerProtocolHandler$ServerHandshakeStateEvent/HANDSHAKE_COMPLETE)
@@ -175,7 +182,7 @@
             ((:on-message handlers#) ch# msg#)
 
             :else
-            (.fireChannelRead ctx# (.retain ^WebSocketFrame msg#))))))))
+            (.fireChannelRead ctx# (.retain ^ByteBufHolder msg#))))))))
 
 (defmacro create-websocket-handler [& body]
   `(create-handler1 true ~@body))
