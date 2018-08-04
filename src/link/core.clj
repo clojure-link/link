@@ -93,6 +93,7 @@
 (make-handler-macro active)
 (make-handler-macro inactive)
 (make-handler-macro event)
+(make-handler-macro channel-writability-changed)
 
 (defmacro create-handler0 [sharable & body]
   `(let [handlers# (merge ~@body)]
@@ -109,6 +110,12 @@
            (when (false? (handler# (.channel ctx#)))
              (.fireChannelInactive ctx#))
            (.fireChannelInactive ctx#)))
+
+       (channelWritabilityChanged [^ChannelHandlerContext ctx#]
+         (if-let [handler# (:on-channel-writability-changed handlers#)]
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelWritabilityChanged ctx#))
+           (.fireChannelWritabilityChanged ctx#)))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
