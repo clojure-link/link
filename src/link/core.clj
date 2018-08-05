@@ -74,10 +74,11 @@
   (send! [this msg]
     (.writeAndFlush this msg (.voidPromise this)))
   (send!* [this msg cb]
-    (let [cf (.writeAndFlush this msg)]
-      (when cb
+    (if cb
+      (let [cf (.writeAndFlush this msg)]
         (.addListener ^ChannelFuture cf (reify GenericFutureListener
-                                          (operationComplete [this f] (cb f)))))))
+                                          (operationComplete [this f] (cb f)))))
+      (.writeAndFlush this msg (.voidPromise this))))
   (channel-addr [this]
     (.localAddress this))
   (remote-addr [this]
@@ -92,6 +93,7 @@
 (make-handler-macro active)
 (make-handler-macro inactive)
 (make-handler-macro event)
+(make-handler-macro channel-writability-changed)
 
 (defmacro create-handler0 [sharable & body]
   `(let [handlers# (merge ~@body)]
@@ -108,6 +110,12 @@
            (when (false? (handler# (.channel ctx#)))
              (.fireChannelInactive ctx#))
            (.fireChannelInactive ctx#)))
+
+       (channelWritabilityChanged [^ChannelHandlerContext ctx#]
+         (if-let [handler# (:on-channel-writability-changed handlers#)]
+           (when (false? (handler# (.channel ctx#)))
+             (.fireChannelWritabilityChanged ctx#))
+           (.fireChannelWritabilityChanged ctx#)))
 
        (exceptionCaught [^ChannelHandlerContext ctx#
                          ^Throwable e#]
