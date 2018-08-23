@@ -5,7 +5,7 @@
   (:import [java.net InetAddress InetSocketAddress]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel ChannelHandler
-            ChannelHandlerContext ChannelFuture EventLoopGroup
+            ChannelFuture EventLoopGroup
             ChannelPipeline ChannelOption]
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
@@ -13,13 +13,18 @@
            [io.netty.util.concurrent EventExecutorGroup]
            [link.core ClientSocketChannel]))
 
-(defn to-channel-option [co]
-  (let [co (name co)
-        co (-> (if (.startsWith co "child.")
-                 (subs co 6) co)
-               (clojure.string/replace #"-" "_")
-               (clojure.string/upper-case))]
-    (ChannelOption/valueOf co)))
+(defn to-channel-option
+  ([co]
+   (to-channel-option co nil))
+  ([co class]
+   (let [co (name co)
+         co (-> (if (.startsWith co "child.")
+                  (subs co 6) co)
+                (clojure.string/replace #"-" "_")
+                (clojure.string/upper-case))]
+     (if class
+       (ChannelOption/valueOf ^Class class co)
+       (ChannelOption/valueOf co)))))
 
 ;; handler specs
 ;; :handler the handler created by create-handler or a factory
@@ -63,9 +68,11 @@
       (.channel NioServerSocketChannel)
       (.childHandler channel-initializer))
     (doseq [op parent-options]
-      (.option bootstrap (to-channel-option (op 0)) (op 1)))
+      (let [op (flatten op)]
+        (.option bootstrap (apply to-channel-option (butlast op)) (last op))))
     (doseq [op child-options]
-      (.childOption bootstrap (to-channel-option (op 0)) (op 1)))
+      (let [op (flatten op)]
+        (.childOption bootstrap (apply to-channel-option (butlast op)) (last op))))
 
     (.sync ^ChannelFuture (.bind bootstrap (InetAddress/getByName host) port))
     ;; return event loop groups so we can shutdown the server gracefully
@@ -114,7 +121,8 @@
       (.channel NioSocketChannel)
       (.handler channel-initializer))
     (doseq [op options]
-      (.option bootstrap (to-channel-option (op 0)) (op 1)))
+      (let [op (flatten op)]
+        (.option bootstrap (apply to-channel-option (butlast op)) (last op))))
 
     [bootstrap worker-group]))
 
