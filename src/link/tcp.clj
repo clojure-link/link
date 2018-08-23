@@ -120,7 +120,7 @@
       (.group worker-group)
       (.channel NioSocketChannel)
       (.handler channel-initializer))
-    (doseq [op options]
+    (doseq [op (into [] options)]
       (let [op (flatten op)]
         (.option bootstrap (apply to-channel-option (butlast op)) (last op))))
 
