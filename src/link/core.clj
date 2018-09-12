@@ -14,7 +14,7 @@
 
 (defprotocol LinkMessageChannel
   (id [this])
-  (long-id [this])
+  (short-id [this])
   (send! [this msg])
   (send!* [this msg cb])
   (valid? [this])
@@ -30,17 +30,17 @@
        ":" (.getPort addr)))
 
 (defn channel-id [^Channel ch]
-  (.asShortText ^ChannelId (.id ch)))
-
-(defn long-channel-id [^Channel ch]
   (.asLongText ^ChannelId (.id ch)))
+
+(defn short-channel-id [^Channel ch]
+  (.asShortText ^ChannelId (.id ch)))
 
 (deftype ClientSocketChannel [ch-agent factory-fn stopped]
   LinkMessageChannel
   (id [this]
     (channel-id @ch-agent))
-  (long-id [this]
-    (long-channel-id @ch-agent))
+  (short-id [this]
+    (short-channel-id @ch-agent))
   (send! [this msg]
     (send!* this msg nil))
   (send!* [this msg cb]
@@ -77,8 +77,8 @@
   NioSocketChannel
   (id [this]
     (channel-id this))
-  (long-id [this]
-    (long-channel-id this))
+  (short-id [this]
+    (short-channel-id this))
   (send! [this msg]
     (.writeAndFlush this msg (.voidPromise this)))
   (send!* [this msg cb]
