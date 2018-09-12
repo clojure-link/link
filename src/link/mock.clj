@@ -5,7 +5,7 @@
 (deftype MockChannel [chid local-addr remote-addr msgs stopped?]
   LinkMessageChannel
   (id [this] chid)
-  (long-id [this] (str "long-" chid))
+  (short-id [this] (str "short-" chid))
   (send! [this msg]
     (swap! msgs conj msg))
   (send!* [this msg cb]
