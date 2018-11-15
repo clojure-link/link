@@ -32,7 +32,7 @@
   ([^ChannelPipeline pipeline ^EventExecutorGroup executor ^String name ^ChannelHandler h]
    (.addLast pipeline executor name h)))
 
-(defn append-handlers->pipeline
+(defn- append-handlers->pipeline
   ([^ChannelPipeline pipeline handlers]
    (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler handlers)))
   ([^ChannelPipeline pipeline ^EventExecutorGroup executor handlers]
@@ -52,21 +52,19 @@
                             (handler-specs ch)
                             handler-specs)]
         (doseq [hs handler-specs]
-          (if (map? hs)
-            (let [h (if (fn? (:handler hs)) ((:handler hs) ch) (:handler hs))]
-              (cond
-                (and (:executor hs) (:name hs))
-                (append-single-handler->pipeline pipeline (:executor hs) (:name hs) h)
+          (let [hs (if (map? hs) hs {:handler hs})
+                h (if (fn? (:handler hs)) ((:handler hs) ch) (:handler hs))]
+            (cond
+              (and (:executor hs) (:name hs))
+              (append-single-handler->pipeline pipeline (:executor hs) (:name hs) h)
 
-                (:name hs)
-                (append-single-handler->pipeline pipeline (:name hs) h)
+              (:name hs)
+              (append-single-handler->pipeline pipeline (:name hs) h)
 
-                (:executor hs)
-                (append-handlers->pipeline pipeline (:executor hs) [h])
+              (:executor hs)
+              (append-handlers->pipeline pipeline (:executor hs) [h])
 
-                :else
-                (append-handlers->pipeline pipeline [h])))
-            (let [h (if (fn? hs) (hs ch) hs)]
+              :else
               (append-handlers->pipeline pipeline [h]))))))))
 
 (defn- start-tcp-server [host port handlers options]
