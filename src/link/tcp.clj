@@ -26,6 +26,18 @@
        (ChannelOption/valueOf ^Class class co)
        (ChannelOption/valueOf co)))))
 
+(defn- append-single-handler->pipeline
+  ([^ChannelPipeline pipeline ^String name ^ChannelHandler h]
+   (.addLast pipeline name h))
+  ([^ChannelPipeline pipeline ^EventExecutorGroup executor ^String name ^ChannelHandler h]
+   (.addLast pipeline executor name h)))
+
+(defn- append-handlers->pipeline
+  ([^ChannelPipeline pipeline handlers]
+   (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler handlers)))
+  ([^ChannelPipeline pipeline ^EventExecutorGroup executor handlers]
+   (.addLast pipeline executor ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler handlers))))
+
 ;; handler specs
 ;; :handler the handler created by create-handler or a factory
 ;; function for stateful handler
@@ -40,18 +52,20 @@
                             (handler-specs ch)
                             handler-specs)]
         (doseq [hs handler-specs]
-          (if (map? hs)
-            (let [h (if (fn? (:handler hs)) ((:handler hs) ch) (:handler hs))]
-              (if-not (:executor hs)
-                (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;"
-                          (into-array ChannelHandler [h]))
-                (.addLast pipeline
-                          ^EventExecutorGroup (:executor hs)
-                          ^"[Lio.netty.channel.ChannelHandler;"
-                          (into-array ChannelHandler [h]))))
-            (let [h (if (fn? hs) (hs ch) hs)]
-              (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;"
-                        (into-array ChannelHandler [h])))))))))
+          (let [hs (if (map? hs) hs {:handler hs})
+                h (if (fn? (:handler hs)) ((:handler hs) ch) (:handler hs))]
+            (cond
+              (and (:executor hs) (:name hs))
+              (append-single-handler->pipeline pipeline (:executor hs) (:name hs) h)
+
+              (:name hs)
+              (append-single-handler->pipeline pipeline (:name hs) h)
+
+              (:executor hs)
+              (append-handlers->pipeline pipeline (:executor hs) [h])
+
+              :else
+              (append-handlers->pipeline pipeline [h]))))))))
 
 (defn- start-tcp-server [host port handlers options]
   (let [boss-group (or (:boss-group options) (NioEventLoopGroup.))
