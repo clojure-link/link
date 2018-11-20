@@ -8,6 +8,18 @@
            [io.netty.channel.socket.nio NioDatagramChannel]
            [link.core ClientSocketChannel]))
 
+(defn- append-single-handler->pipeline
+  ([^ChannelPipeline pipeline ^String name ^ChannelHandler h]
+   (.addLast pipeline name h))
+  ([^ChannelPipeline pipeline ^EventExecutorGroup executor ^String name ^ChannelHandler h]
+   (.addLast pipeline executor name h)))
+
+(defn- append-handlers->pipeline
+  ([^ChannelPipeline pipeline handlers]
+   (.addLast pipeline ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler handlers)))
+  ([^ChannelPipeline pipeline ^EventExecutorGroup executor handlers]
+   (.addLast pipeline executor ^"[Lio.netty.channel.ChannelHandler;" (into-array ChannelHandler handlers))))
+
 (defn channel-init [handler-specs]
   (proxy [ChannelInitializer] []
     (initChannel [^NioDatagramChannel ch]
@@ -40,8 +52,7 @@
                    (fn? handlers) handlers
                    (sequential? handlers) handlers
                    :else [handlers])
-        channel-initializer (channel-init handlers)
-        options (into [] options)]
+        channel-initializer (channel-init handlers)]
 
         (doto bootstrap
           (.group worker-group)
