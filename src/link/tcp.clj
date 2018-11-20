@@ -105,9 +105,9 @@
                       handlers
                       options)))
 
-(defn stop-server [event-loop-groups]
-  (doseq [^EventLoopGroup elg event-loop-groups]
-    (.sync (.shutdownGracefully elg))))
+(defn stop-server [[worker-group boss-group]]
+    (.sync (.shutdownGracefully ^EventLoopGroup boss-group))
+    (.sync (.shutdownGracefully ^EventLoopGroup worker-group)))
 
 (defn server-bootstrap
   "Allow multiple server instance share the same eventloop:
