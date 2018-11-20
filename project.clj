@@ -5,7 +5,7 @@
 
 (defproject link "0.12.2-SNAPSHOT"
   :description "A clojure framework for nonblocking network programming"
-  :url "http://github.com/sunng87/link"
+  :url "https://github.com/L-jasmine/link"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
@@ -22,7 +22,7 @@
                        :plugins [[info.sunng/lein-bootclasspath-deps "0.3.0"]]
                        :boot-dependencies [[org.mortbay.jetty.alpn/alpn-boot "8.1.11.v20170118" :prepend true]]}}
   :scm {:name "git"
-        :url "http://github.com/sunng87/link"}
+        :url "https://github.com/L-jasmine/link"}
   :global-vars {*warn-on-reflection* false}
   :deploy-repositories {"releases" :clojars}
   :aliases {"run-echo-example" ~(conj example-base-command "link.examples.echo")
