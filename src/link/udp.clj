@@ -3,12 +3,13 @@
             [link.codec :refer [netty-encoder netty-decoder]]
             [clojure.tools.logging :as logging])
   (:import [java.util List]
+           [java.net InetSocketAddress]
            [io.netty.bootstrap Bootstrap]
            [io.netty.buffer ByteBuf]
            [io.netty.channel.socket DatagramPacket]
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.handler.codec MessageToMessageCodec]
-           [io.netty.channel
+           [io.netty.channel Channel
             ChannelInitializer ChannelHandler ChannelFuture
             ChannelPipeline ChannelOption ChannelHandlerContext]
            [io.netty.channel.socket.nio NioDatagramChannel]
@@ -63,6 +64,21 @@
           (let [h (if (fn? h) (h ch) h)]
           (append-handlers->pipeline pipeline [h])))))))
 
+(defn client-channel-init [handlers host port]
+  (proxy [ChannelInitializer] []
+    (initChannel [^NioDatagramChannel ch]
+      (let [pipeline ^ChannelPipeline (.pipeline ch)]
+        (append-single-handler->pipeline pipeline "udp-codec"
+          (let [dst (InetSocketAddress. host, port)]
+            (proxy [MessageToMessageCodec] []
+              (decode [^ChannelHandlerContext ctx ^DatagramPacket buf ^List out]
+                (.add out (.copy (.content buf))))
+              (encode [^ChannelHandlerContext ctx ^ByteBuf msg ^List out]
+                (.add out (DatagramPacket. (.copy msg) dst))))))
+        (doseq [h handlers]
+          (let [h (if (fn? h) (h ch) h)]
+          (append-handlers->pipeline pipeline [h])))))))
+
 (defn- start-udp-server [host port handlers options]
   (let [worker-group (or (:worker-group options) (NioEventLoopGroup.))
         bootstrap (or (:bootstrap options) (Bootstrap.))
@@ -85,3 +101,20 @@
 
 (defn stop-server [[bootstrap worker-group]]
     (.sync (.shutdownGracefully ^NioEventLoopGroup worker-group)))
+
+(defn udp-client [host port handlers]
+  (let [worker-group (NioEventLoopGroup.)
+        bootstrap (Bootstrap.)
+        channel-initializer (client-channel-init handlers host port)]
+
+        (doto bootstrap
+          (.group worker-group)
+          (.channel NioDatagramChannel)
+          (.option (ChannelOption/SO_BROADCAST) true)
+          (.handler channel-initializer))
+
+      (.channel (.sync ^ChannelFuture (.bind bootstrap 0)))
+      #_[bootstrap worker-group]))
+
+(defn stop-client [^Channel udp-ch]
+  (.await (.closeFuture udp-ch)))
