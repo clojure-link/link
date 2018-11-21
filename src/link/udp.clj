@@ -116,4 +116,4 @@
       #_[bootstrap worker-group]))
 
 (defn stop-client [^Channel udp-ch]
-  (.await (.closeFuture udp-ch)))
+  (.close udp-ch))
