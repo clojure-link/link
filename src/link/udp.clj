@@ -43,7 +43,6 @@
 
 (defn- append-handlers->pipeline
   ([^ChannelPipeline pipeline handlers]
-    (prn handlers)
    (.addLast pipeline (into-array ChannelHandler handlers))))
 
 (defn channel-init [handlers]
