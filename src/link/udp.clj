@@ -2,18 +2,39 @@
   (:require [link.core :refer :all]
             [link.codec :refer [netty-encoder netty-decoder]]
             [clojure.tools.logging :as logging])
-  (:import [java.net InetAddress InetSocketAddress]
-           [java.util List]
+  (:import [java.util List]
            [io.netty.bootstrap Bootstrap]
            [io.netty.buffer ByteBuf]
+           [io.netty.channel.socket DatagramPacket]
            [io.netty.channel.nio NioEventLoopGroup]
-           [io.netty.handler.codec DatagramPacketDecoder MessageToMessageDecoder]
-           [io.netty.channel ChannelInitializer Channel ChannelHandler ChannelFuture
-            ChannelPipeline ChannelOption]
+           [io.netty.handler.codec MessageToMessageCodec]
+           [io.netty.channel
+            ChannelInitializer ChannelHandler ChannelFuture
+            ChannelPipeline ChannelOption ChannelHandlerContext]
            [io.netty.channel.socket.nio NioDatagramChannel]
-           [io.netty.util.concurrent EventExecutorGroup]
-           [link.core ClientSocketChannel]))
+           [io.netty.util.concurrent GenericFutureListener]))
 
+(extend-protocol LinkMessageChannel
+  NioDatagramChannel
+  (id [this]
+    (channel-id this))
+  (short-id [this]
+    (short-channel-id this))
+  (send! [this msg]
+    (.writeAndFlush this msg (.voidPromise this)))
+  (send!* [this msg cb]
+    (if cb
+      (let [cf (.writeAndFlush this msg)]
+        (.addListener ^ChannelFuture cf (reify GenericFutureListener
+                                          (operationComplete [this f] (cb f)))))
+      (.writeAndFlush this msg (.voidPromise this))))
+  (channel-addr [this]
+    (.localAddress this))
+  (remote-addr [this] nil)
+  (close! [this]
+    (.close this))
+  (valid? [this]
+    (.isActive this)))
 
 (defn- append-single-handler->pipeline
   ([^ChannelPipeline pipeline ^String name ^ChannelHandler h]
@@ -28,11 +49,16 @@
   (proxy [ChannelInitializer] []
     (initChannel [^NioDatagramChannel ch]
       (let [pipeline ^ChannelPipeline (.pipeline ch)]
-        (append-single-handler->pipeline pipeline "udp-decoder"
-          (DatagramPacketDecoder.
-            (proxy [MessageToMessageDecoder] []
-              (decode [ctx ^ByteBuf buf ^List out]
-                (.add out buf)))))
+        (append-single-handler->pipeline pipeline "udp-codec"
+          (let [channels (atom #{})]
+            (proxy [MessageToMessageCodec] []
+              (decode [^ChannelHandlerContext ctx ^DatagramPacket buf ^List out]
+                ;(swap! channels #(conj % (.sender buf)))
+                (reset! channels #{(.sender buf)})
+                (.add out (.copy (.content buf))))
+              (encode [^ChannelHandlerContext ctx ^ByteBuf msg ^List out]
+                (doseq [s @channels]
+                (.add out (DatagramPacket. (.copy msg) s)))))))
         (doseq [h handlers]
           (let [h (if (fn? h) (h ch) h)]
           (append-handlers->pipeline pipeline [h])))))))
@@ -56,3 +82,6 @@
                      :or {options {}
                           host "0.0.0.0"}}]
     (start-udp-server host port handlers options))
+
+(defn stop-server [[bootstrap worker-group]]
+    (.sync (.shutdownGracefully ^NioEventLoopGroup worker-group)))
