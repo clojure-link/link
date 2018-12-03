@@ -54,7 +54,7 @@
 (primitive-codec float 4 writeFloat readFloat)
 (primitive-codec double 8 writeDouble readDouble)
 
-(defn- find-delimiter [^ByteBuf src ^bytes delim]
+(defn find-delimiter [^ByteBuf src ^bytes delim]
   (loop [sindex (.readerIndex src) dindex 0]
     (if (= sindex (.writerIndex src))
       -1
