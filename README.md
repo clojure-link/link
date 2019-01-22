@@ -206,6 +206,6 @@ Create a websocket handler:
 
 ## License
 
-Copyright (C) 2012-2017 Ning Sun <sunng@about.me>
+Copyright (C) 2012-2019 Ning Sun <sunng@about.me> and contributors
 
 Distributed under the Eclipse Public License, the same as Clojure.
