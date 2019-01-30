@@ -18,9 +18,7 @@
                  [io.netty/netty-transport ~netty-version]
                  [org.clojure/tools.logging "0.4.0"]]
   :profiles {:dev {:dependencies [[log4j/log4j "1.2.17"]]}
-             :example {:source-paths ["examples"]
-                       :plugins [[info.sunng/lein-bootclasspath-deps "0.3.0"]]
-                       :boot-dependencies [[org.mortbay.jetty.alpn/alpn-boot "8.1.11.v20170118" :prepend true]]}}
+             :example {:source-paths ["examples"]}}
   :scm {:name "git"
         :url "http://github.com/sunng87/link"}
   :global-vars {*warn-on-reflection* false}
