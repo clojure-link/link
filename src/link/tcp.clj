@@ -10,8 +10,10 @@
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
-           [io.netty.util.concurrent EventExecutorGroup]
-           [link.core ClientSocketChannel]))
+           [io.netty.util.concurrent EventExecutorGroup DefaultThreadFactory]
+           [link.core ClientSocketChannel]
+           (io.netty.util.internal SystemPropertyUtil)
+           (io.netty.util NettyRuntime)))
 
 (defn to-channel-option
   ([co]
@@ -67,14 +69,26 @@
               :else
               (append-handlers->pipeline pipeline [h]))))))))
 
+(defn- default-nio-boss-group []
+  (let [group (NioEventLoopGroup. 1 (DefaultThreadFactory. "link-nio-boss-group"))]
+    (.setIoRatio group 100)
+    group))
+
+(defn- default-nio-worker-group []
+  (NioEventLoopGroup. (max 1 (SystemPropertyUtil/getInt "io.netty.eventLoopThreads"
+                                                        (* 2 (NettyRuntime/availableProcessors))))
+                      (DefaultThreadFactory. "link-nio-worker-group")))
+
 (defn- start-tcp-server [host port handlers options]
-  (let [boss-group (or (:boss-group options) (NioEventLoopGroup.))
-        worker-group (or (:worker-group options) (NioEventLoopGroup.))
+  (let [boss-group (or (:boss-group options) (default-nio-boss-group))
+        worker-group (or (:worker-group options) (default-nio-worker-group))
         bootstrap (or (:bootstrap options) (ServerBootstrap.))
 
         channel-initializer (channel-init handlers)
 
-        options (group-by #(.startsWith (name (% 0)) "child.") (into [] options))
+        options (->> (dissoc options :boss-group :worker-group :bootstrap)
+                     (into [])
+                     (group-by #(.startsWith (name (% 0)) "child.")))
         parent-options (get options false)
         child-options (map #(vector (keyword (subs (name (% 0)) 6)) (% 1)) (get options true))]
     (doto bootstrap
@@ -113,14 +127,14 @@
   "Allow multiple server instance share the same eventloop:
   Just use the result of this function as option in `tcp-server`"
   []
-  {:boss-group (NioEventLoopGroup.)
-   :worker-group (NioEventLoopGroup.)
+  {:boss-group (default-nio-boss-group)
+   :worker-group (default-nio-worker-group)
    :boostrap (ServerBootstrap.)})
 
 (defn tcp-client-factory [handlers
                           & {:keys [options]
                              :or {options {}}}]
-  (let [worker-group (NioEventLoopGroup.)
+  (let [worker-group (or (:worker-group options) (default-nio-worker-group))
         bootstrap (Bootstrap.)
         handlers (cond
                    (fn? handlers) handlers
@@ -128,13 +142,14 @@
                    :else [handlers])
 
         channel-initializer (channel-init handlers)
-        options (into [] options)]
+        options (->> (dissoc options :worker-group)
+                     (into []))]
 
     (doto bootstrap
       (.group worker-group)
       (.channel NioSocketChannel)
       (.handler channel-initializer))
-    (doseq [op (into [] options)]
+    (doseq [op options]
       (let [op (flatten op)]
         (.option bootstrap (apply to-channel-option (butlast op)) (last op))))
 
