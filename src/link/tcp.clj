@@ -5,8 +5,8 @@
   (:import [java.net InetAddress InetSocketAddress]
            [io.netty.bootstrap Bootstrap ServerBootstrap]
            [io.netty.channel ChannelInitializer Channel ChannelHandler
-                             ChannelFuture EventLoopGroup
-                             ChannelPipeline ChannelOption]
+            ChannelFuture EventLoopGroup
+            ChannelPipeline ChannelOption]
            [io.netty.channel.nio NioEventLoopGroup]
            [io.netty.channel.socket.nio
             NioServerSocketChannel NioSocketChannel]
