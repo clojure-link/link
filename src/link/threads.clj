@@ -6,7 +6,7 @@
   ([threads] (DefaultEventExecutorGroup. threads))
   ([threads thread-factory] (DefaultEventExecutorGroup. threads thread-factory)))
 
-(defn prefix-thread-factory [name-prefix]
+(defn ^ThreadFactory prefix-thread-factory [name-prefix]
   (let [counter (atom 0)]
     (reify ThreadFactory
       (newThread [this r]
