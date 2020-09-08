@@ -120,7 +120,7 @@
                    (.readBytes buffer ^bytes sbytes)
                    ;; move readerIndex
                    (.readerIndex buffer (+ dmlength (.readerIndex buffer)))
-                   (String. sbytes encoding))))))))
+                   (String. sbytes encoding)))))))
 
 (defcodec byte-block
   (encoder [options ^ByteBuf data ^ByteBuf buffer]
