@@ -105,12 +105,11 @@
                      dmlength (alength ^bytes dbytes)
                      dlength (find-delimiter buffer dbytes)
                      slength (- dlength dmlength)]
-                 (when (> slength 0)
-                   (let [sbytes (byte-array slength)]
-                     (.readBytes buffer ^bytes sbytes)
-                     ;; move readerIndex
-                     (.readerIndex buffer (+ dmlength (.readerIndex buffer)))
-                     (String. sbytes encoding))))))))
+                 (let [sbytes (byte-array slength)]
+                   (.readBytes buffer ^bytes sbytes)
+                   ;; move readerIndex
+                   (.readerIndex buffer (+ dmlength (.readerIndex buffer)))
+                   (String. sbytes encoding))))))))
 
 (defcodec byte-block
   (encoder [options ^ByteBuf data ^ByteBuf buffer]
