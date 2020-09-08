@@ -54,6 +54,17 @@
 (primitive-codec float 4 writeFloat readFloat)
 (primitive-codec double 8 writeDouble readDouble)
 
+;; little endian versions of multibyte primitive codecs
+(primitive-codec int16-le 2 writeShortLE readShortLE)
+(primitive-codec uint16-le 2 writeShortLE readUnsignedShortLE)
+(primitive-codec int24-le 3 writeMediumLE readMediumLE)
+(primitive-codec uint24-le 3 writeMediumLE readUnsignedMediumLE)
+(primitive-codec int32-le 4 writeIntLE readIntLE)
+(primitive-codec uint32-le 4 writeIntLE readUnsignedIntLE)
+(primitive-codec int64-le 8 writeLongLE readLongLE)
+(primitive-codec float-le 4 writeFloatLE readFloatLE)
+(primitive-codec double-le 8 writeDoubleLE readDoubleLE)
+
 (defn- find-delimiter [^ByteBuf src ^bytes delim]
   (loop [sindex (.readerIndex src) dindex 0]
     (if (= sindex (.writerIndex src))
