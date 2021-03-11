@@ -1,4 +1,4 @@
-(def netty-version "4.1.50.Final")
+(def netty-version "4.1.60.Final")
 
 (def example-base-command
   ["trampoline" "with-profile" "default,example" "run" "-m"])
@@ -8,7 +8,7 @@
   :url "http://github.com/sunng87/link"
   :license {:name "Eclipse Public License - v 1.0"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.10.1"]
+  :dependencies [[org.clojure/clojure "1.10.3"]
                  [io.netty/netty-buffer ~netty-version]
                  [io.netty/netty-codec-http ~netty-version]
                  [io.netty/netty-codec-http2 ~netty-version]
